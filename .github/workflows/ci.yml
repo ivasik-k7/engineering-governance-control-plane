@@ -15,7 +15,7 @@ jobs:
       GOV_REGISTRY: registry
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv venv --python 3.12 && uv pip install -e ".[dev]" ruff pip-audit
       - run: uv run ruff check src tests && uv run ruff format --check src tests
       - run: uv run gov registry lint
