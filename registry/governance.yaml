@@ -1,0 +1,111 @@
+policy_version: 1.0.0
+
+# Higher layers win. Two mandatory rules in conflict produce policy_conflict, never a silent choice.
+precedence:
+  - organization
+  - regulatory
+  - platform
+  - project
+  - preference
+
+enforcement_levels:
+  mandatory: {label: HARD, blocks_ci: true}
+  recommended: {label: MEDIUM, blocks_ci: false, waiver_required: true}
+  advisory: {label: SOFT, blocks_ci: false}
+
+severities: [critical, high, medium, low]
+
+# Service attribute vocabularies. Ordered dimensions run from least to most critical.
+# Without a catalog value an attribute takes its strictest value (last entry, or every category).
+context_model:
+  data_classification: [public, internal, confidential, restricted]
+  service_tier: [tier-3, tier-2, tier-1, tier-0]
+  exposure: [internal, partner, internet]
+  data_categories: [pii, pci-chd, credentials, banking-secrecy, health]
+  regulatory_scope: [pci-dss-4.0, sox, dora, gdpr, nbu-95, psd2]
+
+# Keywords match whole words, plus a trailing "s". A trailing "*" makes a keyword a prefix.
+# Declared task text can only add task types; it never removes rules.
+task_types:
+  authentication:
+    keywords: [auth, authn, authz, authenticat*, authoriz*, login, logout, signin, signup, token, jwt, oauth*, oidc, password*, session, sso, saml, rbac, permission*, credential*, mfa, 2fa]
+  api-endpoint:
+    keywords: [endpoint, api, route, handler, rest, graphql, controller, openapi, webhook]
+  migration:
+    keywords: [migration, migrat*, schema, alembic, flyway, liquibase, column, table, ddl]
+  infrastructure:
+    keywords: [terraform, infrastructure, iam, s3, bucket, vpc, kubernetes, k8s, helm, deployment, cluster, aws, cloudformation, network*]
+  refactoring:
+    keywords: [refactor*, cleanup, restructur*, rename, extract]
+  frontend-ui:
+    keywords: [component, react, ui, page, form, frontend, css, accessibility]
+  dependency-update:
+    keywords: [dependency, dependencies, upgrade, bump, package, library]
+  observability:
+    keywords: [logging, log, metrics, tracing, telemetry, observability, monitoring, alert*]
+  new-service:
+    keywords: [new service, microservice, bootstrap, scaffold*, architecture, design]
+  data-access:
+    keywords: [query, queries, sql, repository, orm, sqlalchemy, database, jdbc, jpa]
+  cryptography:
+    keywords: [crypto*, encrypt*, decrypt*, cipher, hash*, hmac, signing, signature, tls, certificate*, kms, hsm]
+
+# Evidence-based task signals, evaluated against changed file paths and added lines.
+# They only add task types: describing a change differently cannot drop the rules its code triggers.
+task_signals:
+  authentication:
+    paths: ['(^|/)(auth|authn|authz|security|login|oauth|sso|identity)[^/]*(/|\.)']
+    content:
+      - '\b(import|from)\s+(jwt|jose|authlib|passlib|argon2|bcrypt|itsdangerous)\b'
+      - '\bfastapi\.security\b|\bOAuth2PasswordBearer\b|\bHTTPBearer\b'
+      - '\bjsonwebtoken\b|\bnext-auth\b|\bpassport\b'
+      - '\bspring-security\b|@PreAuthorize|SecurityFilterChain'
+      - '(?i)\b(verify|check)_?password\b|\bset_password\b'
+  migration:
+    paths: ['(^|/)(migrations?|alembic|flyway|liquibase|db/changelog)/']
+    content:
+      - '\bop\.(add|drop|alter)_column\b|\bop\.(create|drop)_table\b'
+      - '(?i)\b(create|alter|drop)\s+table\b'
+  infrastructure:
+    paths: ['\.tf$', '\.tfvars$', '(^|/)(k8s|kubernetes|helm|charts|deploy|manifests)/']
+  api-endpoint:
+    paths: ['(^|/)(routes?|routers?|endpoints?|api|controllers?|handlers?)(/|\.)']
+    content:
+      - '@(app|router|api)\.(get|post|put|patch|delete)\('
+      - '\bAPIRouter\(|@(Get|Post|Put|Patch|Delete|Request)Mapping|@RestController'
+  frontend-ui:
+    paths: ['(^|/)components?/.*\.(tsx|jsx)$', '(^|/)pages?/.*\.(tsx|jsx)$']
+  dependency-update:
+    paths: ['(^|/)(requirements[^/]*\.txt|pyproject\.toml|package\.json|package-lock\.json|poetry\.lock|uv\.lock|pom\.xml|build\.gradle(\.kts)?|go\.mod|Cargo\.toml)$']
+  data-access:
+    content:
+      - '\.execute(many)?\(|\bsession\.query\(|\bselect\(|\btext\(\s*["'']'
+  cryptography:
+    content:
+      - '\b(import|from)\s+(cryptography|hashlib|hmac|ssl|Crypto|nacl)\b'
+      - '\bcrypto\.(createHash|createCipher|subtle)\b|javax\.crypto'
+
+# What the built-in validators cover per language. A language present in scanned files with
+# anything other than "full" is a coverage gap: compliance cannot be claimed, and --fail-closed blocks.
+language_support:
+  python: full
+  typescript: full
+  javascript: full
+  terraform: full
+  yaml: full
+  rust: secrets-only
+  java: secrets-only
+  kotlin: secrets-only
+  scala: secrets-only
+  groovy: secrets-only
+  csharp: secrets-only
+  go: secrets-only
+  php: secrets-only
+  ruby: secrets-only
+  swift: secrets-only
+  c: secrets-only
+  cpp: secrets-only
+  shell: secrets-only
+  powershell: secrets-only
+  sql: secrets-only
+  dockerfile: secrets-only

@@ -1,0 +1,58 @@
+# Retrieval evaluation: for a project stack, task and environment, which rules must and must not
+# be returned by get_applicable_rules. Mandatory rules are never allowed to be missing.
+- name: fastapi-authentication-endpoint
+  stack: {languages: [python], frameworks: [fastapi]}
+  task: Implement a new authentication endpoint in my FastAPI service
+  environment: production
+  must_include: [SEC-001, SEC-014, SEC-015, QA-008, API-003, PY-012, DOC-006]
+  must_exclude: [AWS-001, K8S-001, FE-001, DB-002]
+
+- name: alembic-migration-production
+  stack: {languages: [python], frameworks: [fastapi, alembic, postgresql]}
+  task: Add an Alembic migration that renames the email column
+  environment: production
+  must_include: [DB-001, DB-002, SEC-020, ARCH-001]
+  must_be_mandatory: [DB-002]
+  must_exclude: [SEC-014, QA-008]
+
+- name: alembic-migration-development
+  stack: {languages: [python], frameworks: [alembic]}
+  task: Add an Alembic migration that renames the email column
+  environment: development
+  must_include: [DB-002]
+  must_not_be_mandatory: [DB-002]
+  must_exclude: [SEC-002]
+
+- name: terraform-s3-bucket
+  stack: {languages: [terraform], platforms: [aws, terraform]}
+  task: Create an S3 bucket for invoice PDFs with Terraform
+  environment: production
+  must_include: [AWS-001, AWS-002, AWS-003, TF-001, TF-002, SEC-001]
+  must_exclude: [SEC-014, PY-012, K8S-001]
+
+- name: kubernetes-deployment
+  stack: {languages: [yaml], platforms: [kubernetes]}
+  task: Add a Kubernetes deployment for the worker
+  environment: staging
+  must_include: [K8S-001, K8S-002, K8S-003, SEC-001]
+  must_exclude: [AWS-001, PY-005]
+
+- name: react-form
+  stack: {languages: [typescript], frameworks: [react]}
+  task: Build a signup form component
+  environment: production
+  must_include: [FE-001, FE-002, SEC-001]
+  must_exclude: [PY-012, SEC-020, AWS-001]
+
+- name: python-library-refactor
+  stack: {languages: [python]}
+  task: Refactor the parser module
+  environment: development
+  must_include: [SEC-001, PY-005]
+  must_exclude: [API-001, API-003, OBS-001, SEC-002, QA-008]
+
+- name: unknown-task-includes-task-scoped-mandatory
+  stack: {languages: [python], frameworks: [fastapi]}
+  task: ""
+  environment: production
+  must_include: [SEC-014, SEC-015, QA-008]

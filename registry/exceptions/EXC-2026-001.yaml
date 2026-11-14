@@ -1,0 +1,13 @@
+id: EXC-2026-001
+kind: exclusion
+projects:
+  - "github.com/ivasik-k7/engineering-governance-control-plane"
+  - "local/engineering-governance"
+paths:
+  - "tests/**"
+  - "src/governance/validators/**"
+  - "registry/rules/**"
+reason: Validator patterns, rule examples and test fixtures contain the violations they detect.
+approved_by: platform-security
+approved_on: 2026-11-14
+expires: 2027-05-14

@@ -1,0 +1,6 @@
+id: kubernetes
+title: Kubernetes workloads
+match:
+  platforms: [kubernetes]
+categories: [security, cloud]
+default_environment: production

@@ -1,0 +1,8 @@
+id: python-api
+title: Python HTTP API service
+description: FastAPI, Flask or Django services exposing HTTP APIs.
+match:
+  languages: [python]
+  frameworks_any: [fastapi, flask, django, starlette]
+categories: [security, backend, quality, architecture, compliance]
+default_environment: production

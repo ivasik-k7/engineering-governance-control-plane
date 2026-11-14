@@ -1,0 +1,8 @@
+id: WVR-2026-001
+rule: K8S-003
+projects: ["github.com/acme/legacy-batch-*", "local/legacy-batch-*"]
+paths: ["deploy/cronjobs/**"]
+reason: Vendor image is only published under a floating tag; digest pinning is tracked in PLAT-412.
+approved_by: cloud-platform
+approved_on: 2026-10-01
+expires: 2027-01-31
