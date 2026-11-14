@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "engineering-governance": {
+      "type": "stdio",
+      "command": "gov",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+project: bad-service
+policy_version: 1.0.0
+environment: production
+overrides:
+  - rule: SEC-001
+    enforcement: advisory
+    reason: Attempt to relax a mandatory rule from repository content.
+  - rule: PY-005
+    enforcement: advisory
+    reason: Legacy module.

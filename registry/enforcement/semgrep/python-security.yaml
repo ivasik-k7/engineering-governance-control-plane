@@ -1,0 +1,15 @@
+# Semgrep rules referenced by `validation: {type: semgrep, config: enforcement/semgrep/python-security.yaml}`.
+# Rule syntax: https://semgrep.dev/docs/writing-rules/rule-syntax
+rules:
+  - id: governance.jwt-decode-without-verification
+    languages: [python]
+    severity: ERROR
+    message: jwt.decode() called with signature verification disabled (SEC-014).
+    pattern: 'jwt.decode(..., options={..., "verify_signature": False, ...}, ...)'
+  - id: governance.requests-verify-false
+    languages: [python]
+    severity: ERROR
+    message: TLS certificate verification disabled (SEC-030).
+    pattern-either:
+      - pattern: requests.$METHOD(..., verify=False, ...)
+      - pattern: httpx.$METHOD(..., verify=False, ...)

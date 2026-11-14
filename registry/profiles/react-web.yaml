@@ -1,0 +1,6 @@
+id: react-web
+title: React web application
+match:
+  frameworks_any: [react, nextjs]
+categories: [security, frontend, quality, compliance]
+default_environment: production

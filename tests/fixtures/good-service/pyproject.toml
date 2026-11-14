@@ -1,0 +1,4 @@
+[project]
+name = "good-service"
+version = "0.1.0"
+dependencies = ["fastapi>=0.115", "pyjwt>=2.9", "httpx>=0.27", "argon2-cffi>=23.1"]

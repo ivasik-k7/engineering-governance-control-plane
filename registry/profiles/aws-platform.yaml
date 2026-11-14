@@ -1,0 +1,6 @@
+id: aws-platform
+title: AWS infrastructure as code
+match:
+  languages: [terraform]
+categories: [security, cloud, architecture, compliance]
+default_environment: production

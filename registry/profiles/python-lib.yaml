@@ -1,0 +1,9 @@
+id: python-lib
+title: Python library or tool
+description: Python packages without a web framework.
+match:
+  languages: [python]
+  frameworks_none: [fastapi, flask, django, starlette]
+categories: [security, backend, quality, compliance]
+default_environment: development
+exclude_rules: [API-001, API-003, OBS-001]

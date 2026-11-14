@@ -1,0 +1,4 @@
+[project]
+name = "bad-service"
+version = "0.1.0"
+dependencies = ["fastapi>=0.115", "pyjwt>=2.9", "requests>=2.32", "psycopg>=3.2"]

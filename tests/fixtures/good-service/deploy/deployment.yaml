@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: good-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: registry.example.com/good-service:1.4.2
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 256Mi}

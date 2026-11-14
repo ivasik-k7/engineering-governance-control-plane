@@ -1,0 +1,23 @@
+id: payments-api
+match: ["github.com/acme/payments-api"]
+environment: production
+owner: payments-platform
+service_tier: tier-1
+data_classification: confidential
+exposure: internet
+data_categories: [pii]
+regulatory_scope: [pci-dss-4.0, dora, gdpr]
+components:
+  - id: card-vault
+    paths: ["services/vault/**"]
+    owner: payments-security
+    service_tier: tier-0
+    data_classification: restricted
+    exposure: internal
+    data_categories: [pci-chd, pii]
+  - id: reporting
+    paths: ["services/reporting/**"]
+    service_tier: tier-3
+    data_classification: internal
+    exposure: internal
+    data_categories: []
