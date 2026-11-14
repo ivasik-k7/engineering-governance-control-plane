@@ -135,6 +135,61 @@ Every report has an `evidence_grade`. `authoritative` requires a verified CI ide
 signature from a trusted key, a registry not chosen by the repository, and a complete inventory.
 Local runs are `advisory`. `gov validate --require-authoritative` exits 2 otherwise.
 
+## Service context
+
+Banking controls depend on what a service handles and how critical it is, not only on its
+language ([ADR 0005](adr/0005-service-context-model-and-catalog.md)). Every repository, and
+every component of a monorepo, resolves to five attributes:
+
+| Attribute | Vocabulary (least → most critical) |
+| --- | --- |
+| `data_classification` | public, internal, confidential, restricted |
+| `service_tier` | tier-3, tier-2, tier-1, tier-0 |
+| `exposure` | internal, partner, internet |
+| `data_categories` | set: pii, pci-chd, credentials, banking-secrecy, health |
+| `regulatory_scope` | set: pci-dss-4.0, sox, dora, gdpr, nbu-95, psd2 |
+
+Vocabularies live in `context_model` in `registry/governance.yaml`. Values come from the
+catalog. **A value the catalog does not provide defaults to the strictest one**, so an
+uncatalogued repository is treated as tier-0, restricted, internet-facing and in every scope.
+`.governance.yaml` may declare attributes, but only to make them stricter.
+
+```yaml
+# registry/catalog/payments-api.yaml
+id: payments-api
+match: ["github.com/acme/payments-api"]
+environment: production
+service_tier: tier-1
+data_classification: confidential
+exposure: internet
+data_categories: [pii]
+regulatory_scope: [pci-dss-4.0, dora, gdpr]
+components:
+  - id: card-vault
+    paths: ["services/vault/**"]
+    service_tier: tier-0
+    data_classification: restricted
+    exposure: internal
+    data_categories: [pci-chd, pii]
+```
+
+Each file is validated against the attributes of its own component, so a card number in
+`services/vault/` fails PCI-001, while the same rule does not apply to a component with no
+cardholder data.
+
+**Catalog sources**, checked in order:
+
+1. `$GOV_CATALOG`: an external catalog file with its own Ed25519 signature, produced by the
+   platform from the system of record.
+   `gov catalog import-backstage entities.json -o catalog.json --sign-key governance.key`
+   converts Backstage Component entities. It reads the `github.com/project-slug` or
+   `backstage.io/source-location` annotations and `governance.io/tier`, `data-classification`,
+   `data-categories`, `regulatory-scope`, `exposure` and `environment`.
+2. `registry/catalog/*.yaml`: covered by the registry bundle signature.
+
+`gov catalog show` prints the resolved attributes, their source and their trust level for each
+component.
+
 ## Rule format
 
 One Markdown file per rule with YAML frontmatter
@@ -152,7 +207,9 @@ enforcement: mandatory         # mandatory | recommended | advisory
 applies_to:                    # every key optional; lists must intersect the context
   languages: [python, typescript, javascript]
   tasks: [authentication, api-endpoint]
-  # frameworks, platforms, environments, paths
+  # frameworks, platforms, environments, paths,
+  # data_categories, regulatory_scope, exposure, min_data_classification, min_service_tier
+when: '"dora" in ctx.regulatory_scope || ctx.service_tier == "tier-0"'   # optional CEL
 waiver_allowed: false
 validation:
   type: builtin                # builtin | external | semgrep | manual
@@ -172,8 +229,15 @@ references: [https://datatracker.ietf.org/doc/html/rfc8725]
 ...
 ```
 
+`when` is a [CEL](https://github.com/google/cel-spec) expression over `ctx`: `environment`,
+`languages`, `frameworks`, `platforms`, `tasks`, `profiles`, `component`, the five service
+attributes, and `<attribute>_rank` for the ordered ones. If evaluation fails, the rule is
+included and a diagnostic is recorded.
+
 `gov registry lint` checks ids, layers, versions, validator references, conflict references,
-profile references, waiver validity and duration, regexes and overdue reviews.
+profile references, waiver validity and duration, regexes, overdue reviews, attribute values
+against the vocabularies, CEL compilation, unknown `ctx` fields, and negation in mandatory `when`
+expressions.
 `gov registry coverage` shows how many rules at each level have automated validation.
 
 ## Rule resolution
@@ -245,6 +309,9 @@ emitted as suppressions).
 | `terraform-s3-public`, `terraform-iam-wildcard`, `terraform-encryption-at-rest`, `terraform-version-pinning` | AWS-001/002/003, TF-001 |
 | `k8s-privileged`, `k8s-resources`, `k8s-latest-tag` | K8S-001/002/003 |
 | `tests-accompany-changes` (change mode only) | QA-001 |
+| `pan-detection` (Luhn-valid card numbers; published test numbers ignored; masked output) | PCI-001 |
+| `weak-tls-version` (Python, Node.js, ALB policies, CloudFront) | SEC-050 |
+| `terraform-multi-az`, `terraform-waf` | RES-001, SEC-060 |
 
 External adapters: `ruff` (PY-001) and `pip-audit` (SEC-010). Semgrep rules use
 `validation: {type: semgrep, id: <rule id>, config: enforcement/semgrep/<file>.yaml}`, and the
@@ -285,8 +352,11 @@ unreachable.
 registry/                 policy content (governance.yaml, rules/, profiles/, exceptions/, enforcement/)
 src/governance/
   registry.py lint.py     loading, bundles, schema lint
+  signing.py              Ed25519 signing and verification
+  identity.py inventory.py  repository identity, file inventory
+  catalog.py context_model.py cel.py  service catalog, attributes, CEL
   detect.py project.py    stack detection, .governance.yaml
-  resolver.py             context engine
+  resolver.py session.py  context engine, CLI/MCP session
   validation.py changes.py sarif.py design.py
   validators/             built-in checks and external adapters
   mcp_server.py cli.py bootstrap.py
@@ -305,8 +375,8 @@ adr/                      architecture decisions
   repository can edit its own workflow, it can change `GOV_REGISTRY` and `GOV_TRUSTED_KEYS`.
 - Validators beyond secret scanning cover Python, TypeScript/JavaScript, Terraform and
   Kubernetes YAML only. Other languages are reported as coverage gaps, not passed.
-- Monorepos resolve one context per repository; per-component context (catalog plus
-  CODEOWNERS) is planned.
+- Components come from the catalog only; CODEOWNERS is not used.
+- No ServiceNow importer yet; produce the external catalog format from the CMDB.
 - `pip-audit` on a `pyproject.toml` project creates a temporary virtualenv, which requires
   `ensurepip` (`python3-venv` on Debian/Ubuntu).
 - Single-tenant, local stdio server. A remote Streamable HTTP deployment with identity and an
@@ -314,13 +384,10 @@ adr/                      architecture decisions
 
 ## Roadmap
 
-1. Banking context model: service-catalog adapters (Backstage, ServiceNow), data
-   classification, regulatory scope and tier as rule dimensions, per-component context, CEL
-   applicability expressions.
-2. Decision records: pure decision function, per-rule reason codes including rules not
+1. Decision records: pure decision function, per-rule reason codes including rules not
    applied, `gov rules why-not`, replay, signed records in WORM storage, control mapping.
-3. Remote MCP over Streamable HTTP with SSO, per-team registries and stored evidence.
-4. Agent-level evals: run Claude Code and Codex against task fixtures and score rule adherence
+2. Remote MCP over Streamable HTTP with SSO, per-team registries and stored evidence.
+3. Agent-level evals: run Claude Code and Codex against task fixtures and score rule adherence
    from `validate_changes` output.
-5. Adapters for Checkov and OPA/Conftest; more language packs (Go, Java).
-6. Traceability export: requirement → change → validation → evidence, per release.
+4. Adapters for Checkov and OPA/Conftest; more language packs (Go, Java).
+5. Traceability export: requirement → change → validation → evidence, per release.

@@ -1,6 +1,6 @@
 [project]
 name = "engineering-governance"
-version = "0.2.0"
+version = "0.3.0"
 description = "Engineering Governance Control Plane for AI-assisted software development"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,6 +29,7 @@ packages = ["src/governance"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = ["ignore:The recursion limit will not be reset:hypothesis.errors.HypothesisWarning"]
 
 [tool.ruff]
 line-length = 110

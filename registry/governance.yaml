@@ -1,4 +1,4 @@
-policy_version: 1.0.0
+policy_version: 1.1.0
 
 # Higher layers win. Two mandatory rules in conflict produce policy_conflict, never a silent choice.
 precedence:
