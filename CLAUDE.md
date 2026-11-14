@@ -1,8 +1,8 @@
-<!-- engineering-governance:begin v1.0.0 -->
+<!-- engineering-governance:begin v1.1.0 -->
 ## Engineering Governance
 
 This project follows the centralized Engineering Governance Standard
-(policy version 1.0.0, profile(s): python-lib).
+(policy version 1.1.0, profile(s): python-lib).
 
 Before implementing or modifying code:
 

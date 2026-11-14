@@ -55,6 +55,16 @@ untrusted = st.fixed_dictionaries(
         "profiles": st.lists(st.sampled_from(PROFILES), max_size=3, unique=True),
         "config_env": st.sampled_from(ENVS),
         "requested_env": st.sampled_from(ENVS),
+        "attributes": st.fixed_dictionaries(
+            {},
+            optional={
+                "data_classification": st.sampled_from(["public", "internal", "confidential", "restricted"]),
+                "service_tier": st.sampled_from(["tier-3", "tier-2", "tier-1", "tier-0"]),
+                "exposure": st.sampled_from(["internal", "partner", "internet"]),
+                "data_categories": st.lists(st.sampled_from(["pii", "pci-chd", "credentials"]), max_size=2),
+                "regulatory_scope": st.lists(st.sampled_from(["gdpr", "dora", "sox"]), max_size=2),
+            },
+        ),
         "overrides": st.lists(
             st.tuples(
                 st.sampled_from(["SEC-001", "SEC-014", "AWS-001", "PY-005", "DB-002", "QA-008"]),
@@ -74,6 +84,7 @@ def _mandatory(registry, stack, hints=None):
         profiles=hints.get("profiles", []),
         environment=hints.get("config_env"),
         overrides=[Override(r, e) for r, e in hints.get("overrides", [])],
+        attributes=hints.get("attributes", {}),
     )
     ctx = resolve_context(
         registry,

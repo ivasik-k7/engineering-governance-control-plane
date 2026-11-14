@@ -20,6 +20,7 @@ CI_VARIABLES = (
     "CI_SERVER_HOST",
     "GOV_REGISTRY",
     "GOV_TRUSTED_KEYS",
+    "GOV_CATALOG",
 )
 
 

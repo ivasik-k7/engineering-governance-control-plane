@@ -88,7 +88,8 @@ def build_service_context(
     (repository configuration) can only make an attribute stricter or a set larger."""
     ctx = ServiceContext(component=component)
     for dim in DIMENSIONS:
-        if dim in trusted and trusted[dim] not in (None, [], ""):
+        present = dim in trusted and trusted[dim] is not None and trusted[dim] != ""
+        if present and (dim in model.sets or trusted[dim] != []):
             value = str(trusted[dim]).lower() if dim in model.ordered else sorted(set(_as_list(trusted[dim])))
             ctx.attributes[dim] = Attribute(value, trusted_source, TRUSTED)
         else:

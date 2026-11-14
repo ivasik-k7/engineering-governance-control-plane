@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from governance import __version__, bootstrap
+from governance.catalog import CATALOG_ENV, build_catalog_document, import_backstage
 from governance.changes import git_diff
 from governance.design import validate_design
 from governance.identity import resolve_identity
@@ -285,14 +286,22 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             if reg.verified_by
             else f"not verified; set {TRUSTED_KEYS_ENV} and use a signed bundle for authoritative evidence",
         )
-        entry = reg.catalog_entry(identity.id)
-        check(
-            "ok" if entry else "warn",
-            "catalog entry",
-            f"{entry.id} (environment: {entry.environment})"
-            if entry
-            else "none; verified CI runs assume production",
-        )
+        try:
+            ctx = resolve_context(reg, root, config=config, identity=identity)
+            info = ctx.catalog_info
+            check(
+                "ok" if info["entry"] else "warn",
+                "catalog entry",
+                f"{info['entry']} from {info['source']}"
+                f"{' (signed by ' + info['verified_by'] + ')' if info['verified_by'] else ''}"
+                if info["entry"]
+                else "none; attributes default to the strictest values",
+            )
+            defaults = [d for d, a in ctx.service.attributes.items() if a.trust == "default-strict"]
+            if defaults:
+                check("warn", "service attributes", f"strict defaults for: {', '.join(defaults)}")
+        except RegistryError as exc:
+            check("fail", "catalog", str(exc))
     except RegistryError as exc:
         check("fail", "registry", str(exc))
         reg = None
@@ -411,6 +420,47 @@ def cmd_bundle_keygen(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_catalog_show(args: argparse.Namespace) -> int:
+    session = _session(args)
+    ctx = session.context(paths=args.file)
+    data = {
+        "identity": ctx.identity.to_dict(),
+        "catalog": ctx.catalog_info,
+        "service": ctx.service.to_dict(),
+        "target_service": ctx.target_service.to_dict() if args.file else None,
+        "components": {c: sc.to_dict() for c, sc in ctx.service_contexts.items() if c != "_repository"},
+    }
+    lines = [
+        f"identity: {ctx.identity.id} ({'verified' if ctx.identity.verified else 'unverified'})",
+        f"catalog:  {ctx.catalog_info['entry'] or '(no entry)'} {ctx.catalog_info['source'] or ''}",
+        "",
+    ]
+    for name, sc in ctx.service_contexts.items():
+        label = "repository" if name == "_repository" else f"component {name}"
+        lines.append(label)
+        for dim, attr in sc.attributes.items():
+            value = ", ".join(attr.value) if isinstance(attr.value, list) else attr.value
+            lines.append(f"  {dim:<20} {value or '-':<40} {attr.trust} ({attr.source})")
+    _emit(data, args.json, "\n".join(lines))
+    return EXIT_OK
+
+
+def cmd_catalog_import_backstage(args: argparse.Namespace) -> int:
+    raw = json.loads(Path(args.entities).read_text(encoding="utf-8"))
+    entities = raw.get("items", raw) if isinstance(raw, dict) else raw
+    entries = import_backstage(entities, prefix=args.annotation_prefix, default_host=args.host)
+    document = build_catalog_document(
+        entries,
+        source=f"backstage:{Path(args.entities).name}",
+        sign_key=Path(args.sign_key) if args.sign_key else None,
+    )
+    Path(args.output).write_text(json.dumps(document, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    signed = f", signed by {document['signatures'][0]['key_id']}" if document["signatures"] else ", unsigned"
+    print(f"wrote {args.output}: {len(entries)} repositories from {len(entities)} entities{signed}")
+    print(f"Point validators at it with {CATALOG_ENV}={args.output}")
+    return EXIT_OK
+
+
 def cmd_mcp(args: argparse.Namespace) -> int:
     from governance.mcp_server import main as serve
 
@@ -515,6 +565,19 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--out", required=True, help="private key path; the public key is written to <out>.pub")
     sp.add_argument("--force", action="store_true")
     sp.set_defaults(func=cmd_bundle_keygen)
+
+    cat = sub.add_parser("catalog", help="service catalog").add_subparsers(dest="sub", required=True)
+    sp = cat.add_parser("show", help="resolved service attributes for this repository")
+    common(sp, env=False)
+    sp.add_argument("--file", action="append", help="show the target context for these files")
+    sp.set_defaults(func=cmd_catalog_show)
+    sp = cat.add_parser("import-backstage", help="convert Backstage entities to a signed catalog file")
+    sp.add_argument("entities", help="JSON from the Backstage catalog API (/api/catalog/entities)")
+    sp.add_argument("--output", "-o", required=True)
+    sp.add_argument("--sign-key", help="Ed25519 private key (PEM)")
+    sp.add_argument("--annotation-prefix", default="governance.io/")
+    sp.add_argument("--host", default="github.com", help="host for github.com/project-slug annotations")
+    sp.set_defaults(func=cmd_catalog_import_backstage)
 
     sp = sub.add_parser("mcp", help="run the MCP server over stdio")
     sp.add_argument("--repo", help="repository root (default: current directory)")
