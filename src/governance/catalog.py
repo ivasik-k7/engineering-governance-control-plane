@@ -47,9 +47,7 @@ def parse_entry(d: dict[str, Any], source: str = "registry") -> CatalogEntry:
         match=tuple(d["match"]),
         environment=env,
         owner=d.get("owner", ""),
-        attributes={
-            k: v for k, v in d.items() if k not in {"id", "match", "environment", "owner", "components"}
-        },
+        attributes={k: v for k, v in d.items() if k not in {"id", "match", "environment", "owner", "components"}},
         components=tuple(components),
         source=source,
     )
@@ -172,9 +170,7 @@ def import_backstage(
             "exposure": ann.get(f"{prefix}exposure"),
         }
         attrs = {k: _normalise(k, v) for k, v in attrs.items() if v}
-        env = ann.get(f"{prefix}environment") or BACKSTAGE_LIFECYCLE.get(
-            spec.get("lifecycle", ""), "production"
-        )
+        env = ann.get(f"{prefix}environment") or BACKSTAGE_LIFECYCLE.get(spec.get("lifecycle", ""), "production")
         entry = repos.setdefault(
             repo,
             {

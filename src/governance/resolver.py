@@ -165,9 +165,7 @@ def declared_tasks(registry: Registry, description: str) -> list[str]:
     text = description.lower()
     tokens = set(tokenize(text))
     return sorted(
-        task
-        for task, keywords in registry.task_types.items()
-        if any(_keyword_hit(k, text, tokens) for k in keywords)
+        task for task, keywords in registry.task_types.items() if any(_keyword_hit(k, text, tokens) for k in keywords)
     )
 
 
@@ -241,8 +239,7 @@ def resolve_context(
                 {
                     "type": "pinned_profiles_extended",
                     "detected": dropped,
-                    "message": "Pinned profiles cannot remove detected profiles; "
-                    f"{', '.join(dropped)} remain active.",
+                    "message": f"Pinned profiles cannot remove detected profiles; {', '.join(dropped)} remain active.",
                 }
             )
     profiles = {p.id: p for p in [*detected, *pinned]}
@@ -466,9 +463,7 @@ def _profile_allows(registry: Registry, rule: Rule, enforcement: Enforcement, ct
         return True
     if rule.category not in ctx.categories:
         return False
-    return not any(
-        rule.id in registry.profiles[p].exclude_rules for p in ctx.profiles if p in registry.profiles
-    )
+    return not any(rule.id in registry.profiles[p].exclude_rules for p in ctx.profiles if p in registry.profiles)
 
 
 def _apply_override(registry: Registry, rule: Rule, current: Enforcement, ctx: Context) -> Enforcement:
@@ -627,8 +622,7 @@ def applicable_rules_payload(
         "tasks": ctx.tasks,
         "rules": [r.to_dict(include_body=include_body) for r in targeted + shown],
         "other_mandatory": [
-            {"id": r.rule.id, "title": r.rule.title, "level": r.enforcement.label, "why": r.reasons}
-            for r in untargeted
+            {"id": r.rule.id, "title": r.rule.title, "level": r.enforcement.label, "why": r.reasons} for r in untargeted
         ],
         "omitted": {"count": len(omitted), "ids": [r.rule.id for r in omitted]},
         "superseded": [r.rule.id for r in resolved if r.superseded_by],

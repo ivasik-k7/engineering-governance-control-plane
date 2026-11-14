@@ -32,7 +32,7 @@ testpaths = ["tests"]
 filterwarnings = ["ignore:The recursion limit will not be reset:hypothesis.errors.HypothesisWarning"]
 
 [tool.ruff]
-line-length = 110
+line-length = 120
 target-version = "py311"
 extend-exclude = ["tests/fixtures"]
 

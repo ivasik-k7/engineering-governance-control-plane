@@ -57,9 +57,7 @@ async def test_explain_rule(bad_service):
 
 
 async def test_validate_changes_with_diff(good_service):
-    (good_service / "app" / "x.py").write_text(
-        'import jwt\nc = jwt.decode(t, options={"verify_signature": False})\n'
-    )
+    (good_service / "app" / "x.py").write_text('import jwt\nc = jwt.decode(t, options={"verify_signature": False})\n')
     diff = (
         "--- /dev/null\n+++ b/app/x.py\n@@ -0,0 +1,2 @@\n+import jwt\n"
         '+c = jwt.decode(t, options={"verify_signature": False})\n'

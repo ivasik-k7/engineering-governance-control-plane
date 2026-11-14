@@ -60,9 +60,7 @@ def privileged(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
     for workload, spec in _pod_specs(text):
         for host in ("hostNetwork", "hostPID", "hostIPC"):
             if spec.get(host) is True:
-                yield Finding(
-                    path, spec.get(LINE, 1), f"{workload}: {host} is enabled.", snippet=f"{host}: true"
-                )
+                yield Finding(path, spec.get(LINE, 1), f"{workload}: {host} is enabled.", snippet=f"{host}: true")
         for c in _containers(spec):
             sc = c.get("securityContext") or {}
             line = sc.get(LINE, c.get(LINE, 1))

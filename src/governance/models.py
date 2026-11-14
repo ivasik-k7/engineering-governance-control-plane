@@ -67,9 +67,7 @@ class Scope:
         unknown = set(data) - set(SCOPE_KEYS)
         if unknown:
             raise ValueError(f"unknown applies_to keys: {sorted(unknown)}")
-        values: dict[str, Any] = {
-            k: tuple(str(v).lower() for v in data.get(k) or ()) for k in LIST_SCOPE_KEYS
-        }
+        values: dict[str, Any] = {k: tuple(str(v).lower() for v in data.get(k) or ()) for k in LIST_SCOPE_KEYS}
         for k in MIN_SCOPE_KEYS:
             values[k] = str(data[k]).lower() if data.get(k) else None
         return cls(**values)

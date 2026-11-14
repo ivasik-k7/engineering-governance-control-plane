@@ -30,9 +30,7 @@ def commit_all(root: Path) -> None:
 
 def repo_report(registry, root, **kw):
     ctx = resolve_context(registry, root)
-    return validate(
-        registry, ctx, fileset_from_repo(root, ctx.inventory), mode="repo", run_external=False, **kw
-    )
+    return validate(registry, ctx, fileset_from_repo(root, ctx.inventory), mode="repo", run_external=False, **kw)
 
 
 def diff_report(registry, root, diff, task="", **kw):
@@ -42,9 +40,7 @@ def diff_report(registry, root, diff, task="", **kw):
 
 
 def mandatory_ids(payload):
-    return {r["id"] for r in payload["rules"] if r["level"] == "HARD"} | {
-        r["id"] for r in payload["other_mandatory"]
-    }
+    return {r["id"] for r in payload["rules"] if r["level"] == "HARD"} | {r["id"] for r in payload["other_mandatory"]}
 
 
 def test_pinned_profile_and_environment_cannot_drop_mandatory_rules(registry, bad_service):
@@ -79,9 +75,7 @@ def test_project_config_cannot_redirect_registry_in_ci(bad_service, monkeypatch,
 def test_declared_task_cannot_remove_task_scoped_mandatory_rules(registry, bad_service):
     for task in ("add jwt login", "refactor helper", ""):
         ctx = resolve_context(registry, bad_service, task=task)
-        assert {"SEC-014", "SEC-015", "QA-008"} <= mandatory_ids(applicable_rules_payload(registry, ctx)), (
-            task
-        )
+        assert {"SEC-014", "SEC-015", "QA-008"} <= mandatory_ids(applicable_rules_payload(registry, ctx)), task
 
 
 def test_target_paths_cannot_remove_mandatory_rules(registry, bad_service):
@@ -249,9 +243,7 @@ def test_signed_bundle_verification(registry, tmp_path, monkeypatch):
         load_registry(bundle)
 
 
-def test_authoritative_evidence_requires_ci_identity_and_signed_registry(
-    registry, good_service, tmp_path, monkeypatch
-):
+def test_authoritative_evidence_requires_ci_identity_and_signed_registry(registry, good_service, tmp_path, monkeypatch):
     bundle, pub = _signed_bundle(tmp_path, registry)
     args = [
         "--registry",

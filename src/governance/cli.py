@@ -74,8 +74,7 @@ def cmd_rules_list(args: argparse.Namespace) -> int:
             rules,
             args.json,
             "\n".join(
-                f"{r['id']:<9} {r['level']:<6} {r['severity']:<8} {r['category']:<12} {r['title']}"
-                for r in rules
+                f"{r['id']:<9} {r['level']:<6} {r['severity']:<8} {r['category']:<12} {r['title']}" for r in rules
             ),
         )
         return EXIT_OK
@@ -162,18 +161,14 @@ def cmd_validate(args: argparse.Namespace) -> int:
     options = {"fail_closed": args.fail_closed, "strict": args.strict, "run_external": not args.no_external}
     if args.diff:
         diff_text = sys.stdin.read() if args.diff == "-" else Path(args.diff).read_text(encoding="utf-8")
-        report = session.validate_diff(
-            diff_text, task=args.task or "", environment=args.environment, **options
-        )
+        report = session.validate_diff(diff_text, task=args.task or "", environment=args.environment, **options)
     elif args.base or args.changed:
         try:
             diff_text = git_diff(session.root, args.base or "HEAD")
         except (OSError, subprocess.CalledProcessError) as exc:
             print(f"error: git diff failed: {exc}", file=sys.stderr)
             return EXIT_USAGE
-        report = session.validate_diff(
-            diff_text, task=args.task or "", environment=args.environment, **options
-        )
+        report = session.validate_diff(diff_text, task=args.task or "", environment=args.environment, **options)
     else:
         report = session.validate_repository(task=args.task or "", environment=args.environment, **options)
     reg = session.registry
@@ -193,8 +188,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return EXIT_BLOCKED
     if args.require_authoritative and report["evidence_grade"] != "authoritative":
         print(
-            "error: --require-authoritative: evidence is advisory: "
-            + "; ".join(report["evidence"]["grade_reasons"]),
+            "error: --require-authoritative: evidence is advisory: " + "; ".join(report["evidence"]["grade_reasons"]),
             file=sys.stderr,
         )
         return EXIT_USAGE
@@ -338,8 +332,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             check(
                 "ok" if shutil.which(tool) else "warn",
                 f"validator: {tool}",
-                shutil.which(tool)
-                or "not installed; rules using it report `error` (blocking with --fail-closed)",
+                shutil.which(tool) or "not installed; rules using it report `error` (blocking with --fail-closed)",
             )
     mcp_json = root / ".mcp.json"
     if mcp_json.exists() and bootstrap.SERVER_NAME in json.loads(mcp_json.read_text()).get("mcpServers", {}):
@@ -471,9 +464,7 @@ def cmd_mcp(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="gov", description="Engineering Governance Control Plane")
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
-    p.add_argument(
-        "--registry", help="registry directory or bundle .json (default: GOV_REGISTRY, project config)"
-    )
+    p.add_argument("--registry", help="registry directory or bundle .json (default: GOV_REGISTRY, project config)")
     sub = p.add_subparsers(dest="command", required=True)
 
     def common(sp: argparse.ArgumentParser, *, env: bool = True, json_out: bool = True) -> None:
@@ -493,9 +484,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--package", default="engineering-governance", help="pip requirement used in CI")
     sp.set_defaults(func=cmd_init)
 
-    prof = sub.add_parser("profile", help="project profile commands").add_subparsers(
-        dest="sub", required=True
-    )
+    prof = sub.add_parser("profile", help="project profile commands").add_subparsers(dest="sub", required=True)
     sp = prof.add_parser("detect", help="detect stack, profiles and environment")
     common(sp)
     sp.set_defaults(func=cmd_profile_detect)

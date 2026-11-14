@@ -13,9 +13,7 @@ def ctx_for(registry, task):
 
 
 def test_design_with_anti_pattern_requires_rework(registry):
-    design = (
-        "Login endpoint. Store the password as SHA-256. Tokens are decoded without signature verification."
-    )
+    design = "Login endpoint. Store the password as SHA-256. Tokens are decoded without signature verification."
     result = validate_design(registry, ctx_for(registry, design), design)
     assert result["verdict"] == "rework_required"
     flagged = {c["rule_id"] for c in result["checks"] if c["status"] == "violation_suspected"}

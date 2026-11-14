@@ -63,17 +63,13 @@ def monorepo(tmp_path):
         'resource "aws_lb" "public" {\n  internal = false\n}\n'
     )
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    subprocess.run(
-        ["git", "remote", "add", "origin", "https://github.com/acme/payments-api.git"], cwd=root, check=True
-    )
+    subprocess.run(["git", "remote", "add", "origin", "https://github.com/acme/payments-api.git"], cwd=root, check=True)
     return root
 
 
 def report_for(registry, root, **kw):
     ctx = resolve_context(registry, root)
-    return validate(
-        registry, ctx, fileset_from_repo(root, ctx.inventory), mode="repo", run_external=False, **kw
-    )
+    return validate(registry, ctx, fileset_from_repo(root, ctx.inventory), mode="repo", run_external=False, **kw)
 
 
 def result(report, rule_id):

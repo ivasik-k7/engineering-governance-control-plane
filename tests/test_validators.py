@@ -74,16 +74,13 @@ CASES = [
     (
         "k8s-latest-tag",
         "d.yaml",
-        "kind: Pod\nmetadata: {name: p}\nspec:\n  containers:\n"
-        "  - name: a\n    image: localhost:5000/nginx\n",
+        "kind: Pod\nmetadata: {name: p}\nspec:\n  containers:\n  - name: a\n    image: localhost:5000/nginx\n",
         1,
     ),
 ]
 
 
-@pytest.mark.parametrize(
-    ("vid", "path", "text", "expected"), CASES, ids=[f"{c[0]}-{i}" for i, c in enumerate(CASES)]
-)
+@pytest.mark.parametrize(("vid", "path", "text", "expected"), CASES, ids=[f"{c[0]}-{i}" for i, c in enumerate(CASES)])
 def test_builtin_validator(vid, path, text, expected):
     assert len(run(vid, path, text)) == expected
 

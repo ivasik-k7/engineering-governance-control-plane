@@ -42,20 +42,14 @@ class Session:
             inventory=self.inventory,
         )
 
-    def validate_repository(
-        self, *, task: str = "", environment: str | None = None, **kw: Any
-    ) -> dict[str, Any]:
+    def validate_repository(self, *, task: str = "", environment: str | None = None, **kw: Any) -> dict[str, Any]:
         fs = fileset_from_repo(self.root, self.inventory)
         ctx = self.context(task=task, environment=environment)
         return validate(self.registry, ctx, fs, mode="repo", **kw)
 
-    def validate_diff(
-        self, diff: str, *, task: str = "", environment: str | None = None, **kw: Any
-    ) -> dict[str, Any]:
+    def validate_diff(self, diff: str, *, task: str = "", environment: str | None = None, **kw: Any) -> dict[str, Any]:
         fs = fileset_from_diff(self.root, diff)
-        ctx = self.context(
-            task=task, environment=environment, paths=sorted(fs.changed or []), contents=added_text(fs)
-        )
+        ctx = self.context(task=task, environment=environment, paths=sorted(fs.changed or []), contents=added_text(fs))
         return validate(self.registry, ctx, fs, mode="changes", **kw)
 
 
