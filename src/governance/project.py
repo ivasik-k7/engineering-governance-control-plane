@@ -71,7 +71,10 @@ def load_project(root: str | Path) -> ProjectConfig:
     path = root / CONFIG_FILE
     if not path.exists():
         return ProjectConfig(root=root, project=root.name)
-    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return config_from_dict(root, yaml.safe_load(path.read_text(encoding="utf-8")) or {}, exists=True)
+
+
+def config_from_dict(root: Path, data: dict[str, Any], *, exists: bool = False) -> ProjectConfig:
     return ProjectConfig(
         root=root,
         project=str(data.get("project") or root.name),
@@ -85,7 +88,7 @@ def load_project(root: str | Path) -> ProjectConfig:
         ],
         exclude_paths=list(data.get("exclude_paths") or []),
         attributes={k: data[k] for k in DIMENSIONS if data.get(k) not in (None, [], "")},
-        exists=True,
+        exists=exists,
     )
 
 

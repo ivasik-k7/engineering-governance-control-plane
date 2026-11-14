@@ -1,0 +1,12 @@
+id: OBL-001
+title: Security review and threat model for authentication changes in critical services
+enforcement: mandatory
+when: '"authentication" in ctx.tasks && ctx.service_tier_rank >= 2'
+requires:
+  reviewers: ["@acme/security-champions"]
+  artefacts:
+    - id: threat-model
+      description: Threat model covering the changed authentication flow
+      paths: ["docs/threat-models/*", "docs/threat-models/**", "THREAT_MODEL.md", "*/THREAT_MODEL.md"]
+owner: platform-security
+controls: ["ISO-27001-2022:A.8.25", "PCI-DSS-4.0:6.2.4"]

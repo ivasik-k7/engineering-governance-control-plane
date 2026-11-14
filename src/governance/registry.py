@@ -15,10 +15,12 @@ from governance.catalog import parse_entry as parse_catalog_entry
 from governance.context_model import ContextModel
 from governance.models import (
     AntiPattern,
+    Artefact,
     CatalogEntry,
     DesignCheck,
     Enforcement,
     Exclusion,
+    Obligation,
     Profile,
     Rule,
     Scope,
@@ -71,6 +73,8 @@ class Registry:
     task_signals: dict[str, TaskSignals] = field(default_factory=dict)
     language_support: dict[str, str] = field(default_factory=dict)
     context_model: ContextModel | None = None
+    control_frameworks: dict[str, str] = field(default_factory=dict)
+    obligations: list[Obligation] = field(default_factory=list)
     source: str = "default"
     verified_by: str | None = None
 
@@ -173,6 +177,7 @@ def _build(root: str, raw: dict[str, str]) -> Registry:
     waivers: list[Waiver] = []
     exclusions: list[Exclusion] = []
     catalog: list[CatalogEntry] = []
+    obligations: list[Obligation] = []
     for name, text in raw.items():
         try:
             if name.startswith("rules/") and name.endswith(".md"):
@@ -189,6 +194,8 @@ def _build(root: str, raw: dict[str, str]) -> Registry:
                     exclusions.append(_parse_exclusion(data))
                 else:
                     waivers.append(_parse_waiver(data))
+            elif name.startswith("obligations/"):
+                obligations.append(_parse_obligation(yaml.safe_load(text), name))
             elif name.startswith("catalog/"):
                 catalog.append(parse_catalog_entry(yaml.safe_load(text)))
         except (KeyError, TypeError, ValueError, AttributeError, yaml.YAMLError) as exc:
@@ -226,6 +233,8 @@ def _build(root: str, raw: dict[str, str]) -> Registry:
         task_signals=task_signals,
         language_support=language_support,
         context_model=context_model,
+        control_frameworks={str(k): str(v) for k, v in (config.get("control_frameworks") or {}).items()},
+        obligations=sorted(obligations, key=lambda o: o.id),
     )
 
 
@@ -269,6 +278,7 @@ def parse_rule(text: str, source: str) -> Rule:
         references=tuple(meta.get("references", ())),
         review_by=review_by if isinstance(review_by, dt.date) else None,
         when=str(meta["when"]) if meta.get("when") else None,
+        controls=tuple(str(c) for c in meta.get("controls", ())),
     )
 
 
@@ -313,4 +323,21 @@ def _parse_exclusion(d: dict[str, Any]) -> Exclusion:
         approved_by=d["approved_by"],
         expires=_date(d["expires"], "expires"),
         approved_on=d.get("approved_on"),
+    )
+
+
+def _parse_obligation(d: dict[str, Any], source: str) -> Obligation:
+    requires = d.get("requires") or {}
+    return Obligation(
+        id=d["id"],
+        title=d["title"],
+        enforcement=Enforcement(d.get("enforcement", "mandatory")),
+        when=str(d["when"]),
+        reviewers=tuple(requires.get("reviewers", ())),
+        artefacts=tuple(
+            Artefact(a["id"], a.get("description", ""), tuple(a["paths"])) for a in requires.get("artefacts", ())
+        ),
+        owner=d.get("owner", ""),
+        controls=tuple(d.get("controls", ())),
+        source=source,
     )

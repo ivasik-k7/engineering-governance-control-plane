@@ -1,0 +1,9 @@
+id: engineering-governance
+match: ["github.com/ivasik-k7/engineering-governance-control-plane"]
+environment: development
+owner: platform-engineering
+service_tier: tier-2
+data_classification: internal
+exposure: internal
+data_categories: []
+regulatory_scope: []

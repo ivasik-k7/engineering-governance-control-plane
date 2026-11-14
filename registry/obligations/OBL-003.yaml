@@ -1,0 +1,8 @@
+id: OBL-003
+title: Database administrator review for production schema migrations in critical services
+enforcement: mandatory
+when: '"migration" in ctx.tasks && ctx.environment == "production" && ctx.service_tier_rank >= 2'
+requires:
+  reviewers: ["@acme/dba"]
+owner: data-platform
+controls: ["ISO-27001-2022:A.8.32"]

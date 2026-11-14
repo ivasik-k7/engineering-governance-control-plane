@@ -176,6 +176,33 @@ def lint_registry(registry: Registry, today: dt.date | None = None) -> list[dict
                                 f"{dim}: '{bad}' is not in context_model.{dim}",
                             )
 
+    def check_controls(where: str, controls: tuple[str, ...]) -> None:
+        for control in controls:
+            framework = control.split(":", 1)[0]
+            if ":" not in control or framework not in registry.control_frameworks:
+                add(
+                    "error",
+                    where,
+                    f"control '{control}' must be <FRAMEWORK>:<id> with a framework from "
+                    f"control_frameworks ({', '.join(sorted(registry.control_frameworks))})",
+                )
+
+    for rule in registry.rules.values():
+        check_controls(f"{rule.source} ({rule.id})", rule.controls)
+    for ob in registry.obligations:
+        where = f"{ob.source} ({ob.id})"
+        check_controls(where, ob.controls)
+        if not ob.reviewers and not ob.artefacts:
+            add("error", where, "obligation requires neither reviewers nor artefacts")
+        if model is not None:
+            try:
+                compile_check(ob.when)
+                evaluate(ob.when, sample_activation(model))
+            except CelError as exc:
+                add("error", where, f"when: {exc}")
+            for field_name in sorted(set(re.findall(r"\bctx\.(\w+)", ob.when)) - set(sample_activation(model))):
+                add("error", where, f"when: unknown field ctx.{field_name}")
+
     catalog_ids: set[str] = set()
     for entry in registry.catalog:
         where = f"catalog/{entry.id}"

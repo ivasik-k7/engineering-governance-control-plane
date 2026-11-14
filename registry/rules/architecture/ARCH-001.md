@@ -15,6 +15,8 @@ validation:
 design_checks:
   - question: Is there an ADR recording the context, decision, alternatives and consequences?
     signals: [adr, decision record, alternatives considered, consequences]
+controls:
+  - "ISO-27001-2022:A.8.27"
 owner: architecture-board
 review_by: 2027-06-30
 references:

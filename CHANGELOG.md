@@ -3,6 +3,23 @@
 Policy versions (`registry/governance.yaml`) and tool versions (`pyproject.toml`) are
 versioned separately.
 
+## Tool 0.4.0 — 2026-11-14 (P2 decision records)
+
+See [ADR 0006](adr/0006-decision-records.md).
+
+- Every rule gets a decision with reason codes, applied or not; `gov rules why` and the
+  `explain_decision` MCP tool.
+- Decision records: `gov validate --record`, signed with `GOV_SIGNING_KEY`;
+  `gov decision verify | replay | show`.
+- Append-only storage: `--store <dir>` and `--s3-bucket` (Object Lock, conditional write).
+- Obligations (`registry/obligations/`): required reviewers and artefacts; `--approved-by`,
+  `--github-pr` (approvals on the head commit, team expansion with `GOV_GITHUB_TOKEN`),
+  `--enforce-obligations`.
+- Control mapping to PCI DSS 4.0, ISO 27001:2022, NIST SP 800-53 r5, DORA and GDPR;
+  `gov controls report`.
+- CI template records, signs and keeps a decision record per run and reads PR approvals.
+- Optional `aws` extra (boto3).
+
 ## Tool 0.3.0 — 2026-11-14 (P1 banking context model)
 
 See [ADR 0005](adr/0005-service-context-model-and-catalog.md).
@@ -47,6 +64,10 @@ Security fixes for the context engine ([ADR 0004](adr/0004-trust-model-and-monot
   applied exclusions; `gov validate --require-authoritative` exits 2 on advisory evidence.
 - The MCP server opens a fresh session per call and confines `repo_path` to its root.
 - `build_bundle` no longer shares the registry's file map with the bundle.
+
+## Policy 1.2.0 — 2026-11-14
+
+Adds control mappings to 22 rules, control frameworks, and obligations OBL-001 to OBL-004.
 
 ## Policy 1.1.0 — 2026-11-14
 

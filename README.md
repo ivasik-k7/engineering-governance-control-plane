@@ -317,6 +317,66 @@ External adapters: `ruff` (PY-001) and `pip-audit` (SEC-010). Semgrep rules use
 `validation: {type: semgrep, id: <rule id>, config: enforcement/semgrep/<file>.yaml}`, and the
 config is read from the registry, so it also works from bundles.
 
+## Decision records and audit
+
+Every rule gets a decision, including rules that do not apply, with machine-readable reason codes
+([ADR 0006](adr/0006-decision-records.md)):
+
+```
+$ gov rules why SEC-060 --path services/ledger
+SEC-060 Internet-facing HTTP entry points are protected by a WAF (v1.0.0)
+outcome: EXPOSURE_MISMATCH
+  LANGUAGE_MATCH               language: terraform
+  PLATFORM_MATCH               platform: aws
+  EXPOSURE_MISMATCH            exposure: requires internet; has internal
+```
+
+`gov validate --record decision.json` writes a **decision record**: engine and registry digest,
+identity and commit, SHA-256 of every checked file, the inputs to rule resolution, the resolved
+context, all rule decisions, results, obligations and control coverage. The record is
+canonicalised and digested; with `GOV_SIGNING_KEY` it is signed (Ed25519).
+
+```bash
+gov validate --base origin/main --record decision.json --store /var/lib/governance/records
+gov validate ... --s3-bucket audit-records --retention-days 2557      # Object Lock, write-once
+gov decision verify decision.json        # digest, id, signature (GOV_TRUSTED_KEYS)
+gov decision replay decision.json --registry governance-bundle-1.2.0.json   # same decisions?
+gov controls report --record decision.json --framework PCI-DSS-4.0
+```
+
+`replay` re-runs rule resolution on the recorded inputs and compares every decision. It refuses to
+run against a registry whose digest differs from the recorded one.
+
+### Obligations
+
+`registry/obligations/*.yaml` define process requirements that a CEL condition triggers for the
+targeted change:
+
+```yaml
+id: OBL-001
+title: Security review and threat model for authentication changes in critical services
+enforcement: mandatory
+when: '"authentication" in ctx.tasks && ctx.service_tier_rank >= 2'
+requires:
+  reviewers: ["@acme/security-champions"]
+  artefacts:
+    - id: threat-model
+      paths: ["docs/threat-models/**", "THREAT_MODEL.md"]
+```
+
+Artefacts are satisfied by matching files. Reviewers are satisfied by `--approved-by`, or in CI by
+`--github-pr <n>`. The latter counts only approvals on the head commit, and expands team
+membership when `GOV_GITHUB_TOKEN` can read organisation members. Pending mandatory obligations
+prevent a compliance claim, and fail the run with `--enforce-obligations`.
+
+### Control mapping
+
+Rules and obligations reference controls (`PCI-DSS-4.0:8.6.2`, `ISO-27001-2022:A.8.28`,
+`NIST-800-53r5:SC-8`, `DORA:Art.12`, `GDPR:Art.17`). Reports include a status per control:
+failed, unverified, manual_review, pending, satisfied_with_exception, satisfied,
+applied_not_validated or not_applicable. The mappings are a starting point for review by the
+compliance function.
+
 ## MCP server
 
 `gov mcp` serves over stdio (MCP Python SDK 2.x, `MCPServer`). All tools are annotated
@@ -325,8 +385,9 @@ read-only.
 | Tool | Purpose |
 | --- | --- |
 | `resolve_context` | Stack, profiles, environment, task types, detection evidence |
-| `get_applicable_rules` | All HARD rules plus the top MEDIUM/SOFT rules, with reasons, waivers, conflicts and diagnostics |
+| `get_applicable_rules` | HARD rules (targeted and other), top MEDIUM/SOFT rules, obligations, waivers, conflicts, diagnostics |
 | `explain_rule` | Full requirement, rationale, examples, scope, owner, active waivers |
+| `explain_decision` | Why a rule applies or not here: outcome, reason codes, enforcement trace |
 | `validate_design` | Heuristic design review: unaddressed questions and suspected anti-patterns per rule |
 | `validate_changes` | Validators over a diff, `base_ref` or uncommitted changes, with evidence |
 | `validate_repository` | Baseline check over the whole repository |
@@ -356,7 +417,8 @@ src/governance/
   identity.py inventory.py  repository identity, file inventory
   catalog.py context_model.py cel.py  service catalog, attributes, CEL
   detect.py project.py    stack detection, .governance.yaml
-  resolver.py session.py  context engine, CLI/MCP session
+  resolver.py session.py  context engine (decisions, reason codes), CLI/MCP session
+  decision.py compliance.py github.py  decision records, obligations and controls, PR approvals
   validation.py changes.py sarif.py design.py
   validators/             built-in checks and external adapters
   mcp_server.py cli.py bootstrap.py
@@ -384,10 +446,8 @@ adr/                      architecture decisions
 
 ## Roadmap
 
-1. Decision records: pure decision function, per-rule reason codes including rules not
-   applied, `gov rules why-not`, replay, signed records in WORM storage, control mapping.
-2. Remote MCP over Streamable HTTP with SSO, per-team registries and stored evidence.
-3. Agent-level evals: run Claude Code and Codex against task fixtures and score rule adherence
+1. Remote MCP over Streamable HTTP with SSO, per-team registries and stored evidence.
+2. Agent-level evals: run Claude Code and Codex against task fixtures and score rule adherence
    from `validate_changes` output.
-4. Adapters for Checkov and OPA/Conftest; more language packs (Go, Java).
-5. Traceability export: requirement → change → validation → evidence, per release.
+3. Adapters for Checkov and OPA/Conftest; more language packs (Go, Java).
+4. Traceability export per release from decision records; NBU control mapping; ServiceNow catalog importer.

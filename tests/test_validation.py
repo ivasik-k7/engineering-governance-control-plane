@@ -42,7 +42,8 @@ def test_bad_service_is_blocked_on_every_seeded_violation(registry, bad_service)
 
 def test_good_service_passes_but_cannot_claim_compliance_without_external_checks(registry, good_service):
     report = run_repo(registry, good_service)
-    assert report["verdict"] == "pass"
+    assert report["verdict"] == "pass_pending_manual_review"
+    assert report["summary"]["obligations_pending"] == ["OBL-002"]
     assert report["summary"]["blocking"] == []
     assert report["summary"]["unverified_mandatory"] == ["SEC-010"]
     assert report["compliance_claim_allowed"] is False
@@ -109,7 +110,7 @@ def test_tests_accompany_changes_in_diff_mode(registry, good_service):
     diff = "--- /dev/null\n+++ b/app/billing.py\n@@ -0,0 +1,1 @@\n+TOTAL = 1\n"
     report = run_diff(registry, good_service, diff)
     assert "QA-001" in report["summary"]["warnings"]
-    assert report["verdict"] == "pass_with_warnings"
+    assert report["verdict"] == "pass_pending_manual_review"
 
 
 def test_task_scoped_manual_rule_requires_review(registry, good_service):
@@ -145,7 +146,7 @@ def test_fail_closed_blocks_when_mandatory_validator_is_unavailable(registry, go
     ctx = resolve_context(registry, good_service)
     open_report = validate(registry, ctx, fs, mode="repo", run_external=True)
     closed_report = validate(registry, ctx, fs, mode="repo", run_external=True, fail_closed=True)
-    assert open_report["verdict"] == "pass_with_warnings"
+    assert open_report["verdict"] == "pass_pending_manual_review"
     assert closed_report["summary"]["blocking"] == ["SEC-010"]
     assert closed_report["verdict"] == "fail"
 

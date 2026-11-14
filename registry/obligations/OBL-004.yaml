@@ -1,0 +1,11 @@
+id: OBL-004
+title: Architecture decision record for new services
+enforcement: recommended
+when: '"new-service" in ctx.tasks'
+requires:
+  artefacts:
+    - id: adr
+      description: ADR recording the context, decision and alternatives
+      paths: ["adr/*.md", "docs/adr/*.md", "docs/decisions/*.md"]
+owner: architecture-board
+controls: ["ISO-27001-2022:A.8.27"]

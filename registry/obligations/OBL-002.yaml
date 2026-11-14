@@ -1,0 +1,8 @@
+id: OBL-002
+title: PCI compliance review for changes to cardholder-data components
+enforcement: mandatory
+when: '"pci-chd" in ctx.data_categories && "pci-dss-4.0" in ctx.regulatory_scope'
+requires:
+  reviewers: ["@acme/pci-compliance"]
+owner: compliance-engineering
+controls: ["PCI-DSS-4.0:6.5.1"]

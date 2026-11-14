@@ -96,7 +96,7 @@ def test_unsupported_language_is_a_coverage_gap_and_secrets_are_still_found(regi
 
     (root / "src" / "A.java").write_text('class A { String password = System.getenv("P"); }\n')
     open_report = repo_report(registry, root)
-    assert open_report["verdict"] == "pass_with_warnings"
+    assert open_report["verdict"] == "pass_pending_manual_review"
     assert open_report["compliance_claim_allowed"] is False
     assert repo_report(registry, root, fail_closed=True)["verdict"] == "fail"
 
