@@ -33,6 +33,8 @@ def run_tool(tool: str, args: tuple[str, ...], root: Path, files: list[str] | No
         return ExternalResult("error", detail=f"{tool} is not installed")
     if tool == "pip-audit":
         return _pip_audit(exe, args, root, files)
+    if tool == "osv-scanner":
+        return _osv_scanner(exe, args, root, files)
     targets = files if files else ["."]
     if tool == "ruff":
         targets = [f for f in targets if f.endswith((".py", ".pyi"))] if files else ["."]
@@ -110,4 +112,65 @@ def run_semgrep(config: Path, rule_id: str | None, root: Path, files: list[str] 
     ]
     if data.get("errors") and not findings:
         return ExternalResult("error", detail=json.dumps(data["errors"])[:2000], command=cmd)
+    return ExternalResult("fail" if findings else "pass", findings, command=cmd)
+
+
+OSV_MANIFESTS = {
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "gradle.lockfile",
+    "buildscript-gradle.lockfile",
+    "go.mod",
+    "go.sum",
+    "package.json",
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Cargo.lock",
+}
+
+
+def _osv_scanner(exe: str, args: tuple[str, ...], root: Path, files: list[str] | None) -> ExternalResult:
+    """osv-scanner v2 JSON output; findings for vulnerability groups at or above --min-severity (CVSS)."""
+    if files is not None and not any(Path(f).name in OSV_MANIFESTS for f in files):
+        return ExternalResult("not_applicable", detail="no dependency manifest changed")
+    threshold = 0.0
+    passthrough = []
+    for arg in args:
+        if arg.startswith("--min-severity="):
+            threshold = float(arg.split("=", 1)[1])
+        else:
+            passthrough.append(arg)
+    cmd = [exe, *passthrough, "--format", "json", "."]
+    try:
+        proc = _run(cmd, root)
+        data = json.loads(proc.stdout or "{}")
+    except subprocess.TimeoutExpired:
+        return ExternalResult("error", detail="osv-scanner timed out", command=cmd)
+    except json.JSONDecodeError:
+        return ExternalResult("error", detail=(proc.stderr or proc.stdout).strip()[:2000], command=cmd)
+    if proc.returncode not in (0, 1):
+        return ExternalResult("error", detail=proc.stderr.strip()[:2000], command=cmd)
+    findings = []
+    for result in data.get("results", []):
+        source = result.get("source", {}).get("path", "")
+        rel = Path(source).relative_to(root).as_posix() if source.startswith(str(root)) else source
+        for pkg in result.get("packages", []):
+            info = pkg.get("package", {})
+            for group in pkg.get("groups", []):
+                try:
+                    severity = float(group.get("max_severity") or 0)
+                except ValueError:
+                    severity = 0.0
+                if severity >= threshold:
+                    ids = ", ".join(group.get("ids", [])[:3])
+                    findings.append(
+                        Finding(
+                            rel or "dependencies",
+                            1,
+                            f"{info.get('ecosystem')} {info.get('name')} {info.get('version')}: "
+                            f"{ids} (CVSS {severity:g})",
+                        )
+                    )
     return ExternalResult("fail" if findings else "pass", findings, command=cmd)

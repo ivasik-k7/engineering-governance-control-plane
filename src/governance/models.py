@@ -180,6 +180,8 @@ class Profile:
         m = self.match
         if m.get("languages") and not set(m["languages"]) <= set(facts.languages):
             return False
+        if m.get("languages_any") and not set(m["languages_any"]) & set(facts.languages):
+            return False
         if m.get("platforms") and not set(m["platforms"]) <= set(facts.platforms):
             return False
         if m.get("frameworks_any") and not set(m["frameworks_any"]) & set(facts.frameworks):

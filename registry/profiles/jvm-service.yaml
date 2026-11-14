@@ -1,0 +1,7 @@
+id: jvm-service
+title: JVM service (Java or Kotlin)
+description: Spring Boot, Quarkus or Micronaut services and JVM libraries.
+match:
+  languages_any: [java, kotlin]
+categories: [security, backend, quality, architecture, compliance]
+default_environment: production

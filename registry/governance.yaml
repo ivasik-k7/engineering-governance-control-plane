@@ -1,4 +1,4 @@
-policy_version: 1.2.0
+policy_version: 1.3.0
 
 # Higher layers win. Two mandatory rules in conflict produce policy_conflict, never a silent choice.
 precedence:
@@ -102,12 +102,12 @@ language_support:
   terraform: full
   yaml: full
   rust: secrets-only
-  java: secrets-only
-  kotlin: secrets-only
+  java: full
+  kotlin: full
   scala: secrets-only
   groovy: secrets-only
   csharp: secrets-only
-  go: secrets-only
+  go: full
   php: secrets-only
   ruby: secrets-only
   swift: secrets-only

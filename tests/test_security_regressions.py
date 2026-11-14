@@ -86,15 +86,14 @@ def test_target_paths_cannot_remove_mandatory_rules(registry, bad_service):
 
 
 def test_unsupported_language_is_a_coverage_gap_and_secrets_are_still_found(registry, tmp_path):
-    root = tmp_path / "java-svc"
+    root = tmp_path / "dotnet-svc"
     (root / "src").mkdir(parents=True)
-    (root / "pom.xml").write_text("<project/>")
-    (root / "src" / "A.java").write_text(f'class A {{ String password = "{SECRET}"; }}\n')
+    (root / "src" / "A.cs").write_text(f'class A {{ string password = "{SECRET}"; }}\n')
     report = repo_report(registry, root)
     assert "SEC-001" in report["summary"]["blocking"]
-    assert report["summary"]["coverage_gaps"][0]["language"] == "java"
+    assert report["summary"]["coverage_gaps"][0]["language"] == "csharp"
 
-    (root / "src" / "A.java").write_text('class A { String password = System.getenv("P"); }\n')
+    (root / "src" / "A.cs").write_text('class A { string password = Environment.GetEnvironmentVariable("P"); }\n')
     open_report = repo_report(registry, root)
     assert open_report["verdict"] == "pass_pending_manual_review"
     assert open_report["compliance_claim_allowed"] is False

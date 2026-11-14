@@ -7,7 +7,7 @@ from governance.registry import RegistryError, build_bundle, load_registry
 
 
 def test_registry_loads_and_lints_clean(registry):
-    assert registry.policy_version == "1.2.0"
+    assert registry.policy_version == "1.3.0"
     assert len(registry.rules) >= 25
     assert [i for i in lint_registry(registry) if i["level"] == "error"] == []
 

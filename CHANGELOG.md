@@ -3,6 +3,18 @@
 Policy versions (`registry/governance.yaml`) and tool versions (`pyproject.toml`) are
 versioned separately.
 
+## Tool 0.5.0 — 2026-11-14 (JVM and Go rule pack)
+
+- Stack detection for Maven and Gradle (Spring Boot, Spring Security, Actuator, JPA, jjwt,
+  Quarkus, Micronaut, AWS SDK) and Go modules (gin, echo, chi, gorm, gRPC, golang-jwt);
+  profiles `jvm-service` and `go-service`; profile matching supports `languages_any`.
+- Java, Kotlin and Go move from `secrets-only` to `full` language support.
+- JWT, password hashing, SQL, TLS verification, weak TLS and sensitive-logging validators cover
+  Java, Kotlin and Go.
+- New validators: `insecure-random`, `command-injection`, `unsafe-deserialization`,
+  `spring-csrf-disabled`, `xxe`, `actuator-exposure`, `go-http-timeouts`; `osv-scanner` adapter.
+- CI template installs osv-scanner v2.7.1.
+
 ## Tool 0.4.0 — 2026-11-14 (P2 decision records)
 
 See [ADR 0006](adr/0006-decision-records.md).
@@ -64,6 +76,14 @@ Security fixes for the context engine ([ADR 0004](adr/0004-trust-model-and-monot
   applied exclusions; `gov validate --require-authoritative` exits 2 on advisory evidence.
 - The MCP server opens a fresh session per call and confines `repo_path` to its root.
 - `build_bundle` no longer shares the registry's file map with the bundle.
+
+## Policy 1.3.0 — 2026-11-14
+
+- New rules: SEC-011 (JVM/Go/JS dependency vulnerabilities), SEC-016 (CSPRNG), SEC-021 (command
+  injection), SEC-022 (unsafe deserialisation), JVM-001 (Spring CSRF), JVM-002 (XXE), JVM-003
+  (Actuator exposure), GO-001 (Go HTTP timeouts).
+- SEC-014 1.2.0, SEC-015, SEC-020, SEC-030 and SEC-040 1.1.0: scope extended to Java, Kotlin and Go.
+- Profiles `jvm-service` and `go-service`.
 
 ## Policy 1.2.0 — 2026-11-14
 

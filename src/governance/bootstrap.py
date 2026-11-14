@@ -114,7 +114,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install governance CLI and validators
-        run: pip install "{package}" ruff pip-audit
+        run: |
+          pip install "{package}" ruff pip-audit
+          curl -fsSL -o "$RUNNER_TEMP/osv-scanner" \\
+            https://github.com/google/osv-scanner/releases/download/v2.7.1/osv-scanner_linux_amd64
+          install -m 0755 "$RUNNER_TEMP/osv-scanner" /usr/local/bin/osv-scanner
       - name: Fetch signed policy bundle
         run: |
           dir="$RUNNER_TEMP/governance"

@@ -13,7 +13,7 @@ from governance.registry import RULE_ID, Registry
 from governance.validators import BUILTIN
 
 KNOWN_VALIDATION_TYPES = {"builtin", "external", "semgrep", "manual"}
-KNOWN_EXTERNAL_TOOLS = {"ruff", "pip-audit", "checkov", "conftest", "bandit"}
+KNOWN_EXTERNAL_TOOLS = {"ruff", "pip-audit", "osv-scanner", "checkov", "conftest", "bandit"}
 
 
 def lint_registry(registry: Registry, today: dt.date | None = None) -> list[dict[str, Any]]:
@@ -226,6 +226,9 @@ LANG_SUFFIX = {
     "typescript": (".ts", ".tsx"),
     "javascript": (".js", ".jsx", ".mjs"),
     "rust": (".rs",),
+    "java": (".java",),
+    "kotlin": (".kt", ".kts"),
+    "go": (".go",),
     "terraform": (".tf",),
     "yaml": (".yaml", ".yml"),
 }

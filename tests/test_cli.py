@@ -28,7 +28,7 @@ def test_init_is_idempotent_and_preserves_existing_content(good_service, capsys)
     (good_service / "CLAUDE.md").write_text("# Team notes\n\nKeep this.\n")
     assert main(["init", "--path", str(good_service), "--ci", "github"]) == 0
     first = (good_service / "CLAUDE.md").read_text()
-    assert "Keep this." in first and "engineering-governance:begin v1.2.0" in first
+    assert "Keep this." in first and "engineering-governance:begin v1.3.0" in first
     assert (good_service / "AGENTS.md").exists()
     mcp = json.loads((good_service / ".mcp.json").read_text())
     assert mcp["mcpServers"]["engineering-governance"]["command"] == "gov"

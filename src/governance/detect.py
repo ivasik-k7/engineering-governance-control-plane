@@ -85,6 +85,25 @@ PYTHON_FRAMEWORKS = {
     "python-jose": "python-jose",
 }
 JS_FRAMEWORKS = {"react": "react", "next": "nextjs", "express": "express", "@nestjs/core": "nestjs"}
+JVM_FRAMEWORKS = (
+    (re.compile(r"spring-boot|org\.springframework\.boot"), "spring-boot"),
+    (re.compile(r"spring-security|spring-boot-starter-security"), "spring-security"),
+    (re.compile(r"spring-boot-starter-actuator"), "spring-actuator"),
+    (re.compile(r"hibernate|spring-boot-starter-data-jpa|jakarta\.persistence"), "jpa"),
+    (re.compile(r"io\.jsonwebtoken|\bjjwt\b"), "jjwt"),
+    (re.compile(r"io\.quarkus"), "quarkus"),
+    (re.compile(r"io\.micronaut"), "micronaut"),
+)
+GO_FRAMEWORKS = {
+    "github.com/gin-gonic/gin": "gin",
+    "github.com/labstack/echo": "echo",
+    "github.com/go-chi/chi": "chi",
+    "gorm.io/gorm": "gorm",
+    "google.golang.org/grpc": "grpc",
+    "github.com/golang-jwt/jwt": "golang-jwt",
+    "github.com/aws/aws-sdk-go": "aws-sdk",
+}
+JVM_BUILD_FILES = ("pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts")
 
 K8S_DOC = re.compile(r"^apiVersion:\s*\S+.*^kind:\s*\S+", re.MULTILINE | re.DOTALL)
 TF_AWS = re.compile(r'(provider\s+"aws"|source\s*=\s*"hashicorp/aws"|resource\s+"aws_)')
@@ -158,6 +177,27 @@ def detect_project(root: str | Path, inventory: Inventory | None = None) -> Proj
 
     if (root / "Cargo.toml").exists():
         facts.add("languages", "rust", "Cargo.toml")
+
+    jvm_build = [n for n in JVM_BUILD_FILES if (root / n).exists()]
+    if jvm_build:
+        text = "\n".join((root / n).read_text(encoding="utf-8", errors="replace") for n in jvm_build)
+        kotlin = any(n.endswith(".kts") for n in jvm_build) or "kotlin" in text
+        facts.add("languages", "kotlin" if kotlin and "src/main/java" not in text else "java", ", ".join(jvm_build))
+        for pattern, framework in JVM_FRAMEWORKS:
+            if pattern.search(text):
+                facts.add("frameworks", framework, f"{jvm_build[0]}: {pattern.pattern}")
+        if "software.amazon.awssdk" in text or "aws-java-sdk" in text:
+            facts.add("platforms", "aws", f"{jvm_build[0]}: AWS SDK")
+
+    gomod = root / "go.mod"
+    if gomod.exists():
+        facts.add("languages", "go", "go.mod")
+        text = gomod.read_text(encoding="utf-8", errors="replace")
+        for module, framework in GO_FRAMEWORKS.items():
+            if module in text:
+                facts.add("frameworks", framework, f"go.mod: {module}")
+        if "github.com/aws/aws-sdk-go" in text:
+            facts.add("platforms", "aws", "go.mod: aws-sdk-go")
 
     counts: dict[str, int] = {}
     for rel in inventory.files:

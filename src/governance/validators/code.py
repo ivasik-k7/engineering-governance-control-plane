@@ -8,6 +8,8 @@ from governance.validators.base import FileSet, Finding, Validator, snippet
 
 PY = (".py",)
 JS = (".ts", ".tsx", ".js", ".jsx", ".mjs")
+JVM = (".java", ".kt", ".kts")
+GO = (".go",)
 
 SECRET_PATTERNS = (
     (re.compile(r"\b(AKIA|ASIA)[0-9A-Z]{16}\b"), "AWS access key ID"),
@@ -59,7 +61,19 @@ JWT_PATTERNS = (
     (re.compile(r"""algorithms\s*[=:]\s*\[[^\]]*["']none["']""", re.I), "JWT 'none' algorithm allowed."),
     (re.compile(r"ignoreExpiration\s*:\s*true"), "JWT expiry check disabled."),
     (re.compile(r"\bjwt\.decode\s*\(\s*[^,)]+\s*,\s*None\b"), "JWT decoded without a key."),
+    (
+        re.compile(r"\.parseClaimsJwt\s*\(|\.parseUnsecuredClaims\s*\(|\.unsecured\(\)"),
+        "jjwt parses an unsigned JWT; use parseSignedClaims with a verification key.",
+    ),
+    (
+        re.compile(r"\bJWT\.decode\s*\("),
+        "java-jwt JWT.decode() does not verify; use JWT.require(algorithm).build().verify().",
+    ),
+    (re.compile(r"SignatureAlgorithm\.NONE\b|Algorithm\.none\(\)"), "JWT 'none' algorithm allowed."),
+    (re.compile(r"\.ParseUnverified\s*\("), "golang-jwt ParseUnverified does not check the signature."),
+    (re.compile(r"\bjwt\.WithoutClaimsValidation\(\)"), "golang-jwt claim validation disabled."),
 )
+GO_JWT_PARSE = re.compile(r"\bjwt\.Parse(WithClaims)?\s*\(")
 JWT_DECODE_CALL = re.compile(r"\bjwt\.decode\s*\(")
 
 
@@ -75,6 +89,16 @@ def jwt_validation(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
             if "algorithms" not in call:
                 yield Finding(
                     path, no, "jwt.decode() without an explicit algorithms allow-list.", snippet=snippet(line)
+                )
+        if path.endswith(GO) and GO_JWT_PARSE.search(line):
+            window = " ".join(lines[no - 1 : no + 12])
+            if "WithValidMethods" not in window and ".Method" not in window:
+                yield Finding(
+                    path,
+                    no,
+                    "jwt.Parse without an algorithm allow-list (WithValidMethods or a "
+                    "token.Method check in the key function).",
+                    snippet=snippet(line),
                 )
         if path.endswith(JS) and re.search(r"\bjwt\.decode\s*\(", line) and "verify" not in line:
             yield Finding(
@@ -97,12 +121,24 @@ def _call_end(text: str, start: int) -> int:
     return len(text) - 1
 
 
-WEAK_HASH = re.compile(r"""(hashlib\.(md5|sha1|sha224|sha256|sha512)\s*\(|createHash\(\s*["'](md5|sha1|sha256)["'])""")
+WEAK_HASH = re.compile(
+    r"""(hashlib\.(md5|sha1|sha224|sha256|sha512)\s*\(|createHash\(\s*["'](md5|sha1|sha256)["'])"""
+    r"""|MessageDigest\.getInstance\(\s*"(MD5|SHA-?1|SHA-?256|SHA-?512)"\s*\)"""
+    r"""|\b(md5|sha1|sha256|sha512)\.(Sum(256|512)?|New)\s*\("""
+)
+INSECURE_ENCODER = re.compile(
+    r"\b(NoOpPasswordEncoder|StandardPasswordEncoder|Md5PasswordEncoder|LdapShaPasswordEncoder)\b"
+)
 
 
 def weak_password_hash(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
     lines = text.splitlines()
     for no, line in enumerate(lines, 1):
+        if INSECURE_ENCODER.search(line):
+            yield Finding(
+                path, no, "Insecure Spring Security password encoder; use Argon2 or BCrypt.", snippet=snippet(line)
+            )
+            continue
         if WEAK_HASH.search(line):
             window = " ".join(lines[max(0, no - 4) : no + 2]).lower()
             if "passw" in window or "pwd" in window:
@@ -119,6 +155,26 @@ SQL_BUILDING = (
     re.compile(r"""\.(execute|executemany|exec_driver_sql|raw)\s*\(\s*["'][^"']*["']\s*(%|\+)\s*[\w(]"""),
     re.compile(r"""\.(execute|executemany|exec_driver_sql|raw)\s*\(\s*["'][^"']*["']\s*\.format\("""),
     re.compile(r"""\btext\s*\(\s*f["'](select|insert|update|delete|with)\b""", re.I),
+    re.compile(
+        r"""\.(executeQuery|executeUpdate|executeLargeUpdate|execute|addBatch|prepareStatement|createQuery|"""
+        r"""createNativeQuery|query|queryForObject|queryForList|queryForMap|update)\s*\(\s*"[^"]*"\s*\+"""
+    ),
+    re.compile(
+        r"""\.(executeQuery|executeUpdate|execute|prepareStatement|createQuery|createNativeQuery|query|"""
+        r"""queryForObject|queryForList|update)\s*\(\s*String\.format\("""
+    ),
+    re.compile(
+        r"""\.(executeQuery|executeUpdate|execute|prepareStatement|createQuery|createNativeQuery|query|"""
+        r"""queryForObject|queryForList|update)\s*\(\s*"[^"]*\$\{?[A-Za-z_]"""
+    ),
+    re.compile(
+        r"""\.(Query|QueryRow|Exec|QueryContext|QueryRowContext|ExecContext|Raw|Where|Prepare)\s*\("""
+        r"""\s*(ctx\s*,\s*)?fmt\.Sprintf\("""
+    ),
+    re.compile(
+        r"""\.(Query|QueryRow|Exec|QueryContext|QueryRowContext|ExecContext|Raw|Prepare)\s*\("""
+        r"""\s*(ctx\s*,\s*)?"[^"]*"\s*\+"""
+    ),
 )
 
 
@@ -138,6 +194,19 @@ TLS_DISABLED = (
     (re.compile(r"ssl\._create_unverified_context\s*\("), "Unverified SSL context."),
     (re.compile(r"\bcheck_hostname\s*=\s*False\b"), "TLS hostname check disabled."),
     (re.compile(r"\bverify_mode\s*=\s*ssl\.CERT_NONE\b"), "TLS certificate verification disabled."),
+    (re.compile(r"\bInsecureSkipVerify\s*:\s*true\b"), "Go TLS verification disabled (InsecureSkipVerify)."),
+    (
+        re.compile(r"\b(NoopHostnameVerifier|ALLOW_ALL_HOSTNAME_VERIFIER|TrustAllStrategy|TrustSelfSignedStrategy)\b"),
+        "Java TLS hostname or certificate verification disabled.",
+    ),
+    (
+        re.compile(r"(setHostnameVerifier|hostnameVerifier)\s*[({]\s*\(?\s*\w+\s*,\s*\w+\s*\)?\s*->\s*true"),
+        "HostnameVerifier accepts every host.",
+    ),
+    (
+        re.compile(r"checkServerTrusted\s*\([^)]*\)\s*(:\s*Unit\s*)?(throws\s+[\w.]+\s*)?\{\s*\}"),
+        "X509TrustManager accepts every certificate.",
+    ),
 )
 
 
@@ -150,7 +219,9 @@ def tls_verification_disabled(path: str, text: str, fs: FileSet) -> Iterator[Fin
 
 
 LOG_CALL = re.compile(
-    r"\b(log|logger|logging|_log|LOG|LOGGER)\.(debug|info|warning|warn|error|exception|critical)\s*\("
+    r"\b(log|logger|logging|_log|slog|logrus|zap\.[LS]\(\))\.(debug|info|warning|warn|error|exception|critical|fatal|"
+    r"trace|printf|println|print|debugf|infof|warnf|errorf|fatalf)\s*\(",
+    re.I,
 )
 SENSITIVE = re.compile(
     r"\b(password|passwd|secret|api_key|apikey|access_token|refresh_token|token|authorization)\b", re.I
@@ -161,7 +232,10 @@ def sensitive_logging(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
     for no, line in enumerate(text.splitlines(), 1):
         if (m := LOG_CALL.search(line)) and (s := SENSITIVE.search(line[m.end() :])):
             arg_text = line[m.end() :]
-            if re.search(r"\{[^}]*" + re.escape(s.group(0)) + r"|,\s*\w*" + re.escape(s.group(0)), arg_text, re.I):
+            word = re.escape(s.group(0))
+            if re.search(
+                r"\{[^}]*" + word + r"|,\s*[\w.]*" + word + r"|\+\s*[\w.]*" + word + r"|\$\{?\w*" + word, arg_text, re.I
+            ):
                 yield Finding(path, no, f"Log call includes '{s.group(0)}'.", snippet=snippet(line))
 
 
@@ -280,11 +354,16 @@ VALIDATORS = [
         hardcoded_secrets,
         filenames=(".env", ".env.*", "*.env", ".npmrc", ".pypirc", "credentials", "*.pem", "*.key"),
     ),
-    Validator("jwt-validation", "Disabled or incomplete JWT verification", (*PY, *JS), jwt_validation),
-    Validator("weak-password-hash", "Fast hashes applied to passwords", (*PY, *JS), weak_password_hash),
-    Validator("sql-string-building", "SQL built with string formatting", PY, sql_string_building),
-    Validator("tls-verification-disabled", "Disabled TLS certificate verification", PY, tls_verification_disabled),
-    Validator("sensitive-logging", "Secrets or tokens in log calls", PY, sensitive_logging),
+    Validator("jwt-validation", "Disabled or incomplete JWT verification", (*PY, *JS, *JVM, *GO), jwt_validation),
+    Validator("weak-password-hash", "Fast hashes applied to passwords", (*PY, *JS, *JVM, *GO), weak_password_hash),
+    Validator("sql-string-building", "SQL built with string formatting", (*PY, *JVM, *GO), sql_string_building),
+    Validator(
+        "tls-verification-disabled",
+        "Disabled TLS certificate verification",
+        (*PY, *JVM, *GO),
+        tls_verification_disabled,
+    ),
+    Validator("sensitive-logging", "Secrets or tokens in log calls", (*PY, *JVM, *GO), sensitive_logging),
     Validator("bare-except", "Bare except clauses", PY, bare_except),
     Validator("blocking-in-async", "Blocking calls inside async functions", PY, blocking_in_async),
     Validator(

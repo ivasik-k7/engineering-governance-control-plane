@@ -73,6 +73,12 @@ WEAK_TLS = (
         re.compile(r"""secureProtocol\s*:\s*["'](TLSv1|TLSv1_1|SSLv3)_method["']"""),
         "Node.js protocol below TLS 1.2.",
     ),
+    (
+        re.compile(r"""SSLContext\.getInstance\(\s*"(SSL|SSLv3|TLS|TLSv1|TLSv1\.1)"\s*\)"""),
+        "Java SSLContext allows protocols below TLS 1.2; request TLSv1.2 or TLSv1.3.",
+    ),
+    (re.compile(r'setEnabledProtocols\([^)]*"(SSLv3|TLSv1|TLSv1\.1)"'), "Java socket enables TLS below 1.2."),
+    (re.compile(r"\bMinVersion\s*:\s*tls\.Version(SSL30|TLS10|TLS11)\b"), "Go TLS MinVersion below 1.2."),
 )
 
 
@@ -123,7 +129,12 @@ VALIDATORS = [
         (*SECRET_SUFFIXES, ".csv", ".log"),
         pan_detection,
     ),
-    Validator("weak-tls-version", "TLS versions below 1.2", (".py", ".tf", ".js", ".ts", ".mjs"), weak_tls_version),
+    Validator(
+        "weak-tls-version",
+        "TLS versions below 1.2",
+        (".py", ".tf", ".js", ".ts", ".mjs", ".java", ".kt", ".go"),
+        weak_tls_version,
+    ),
     Validator("terraform-multi-az", "Single-AZ databases and caches", TF, terraform_multi_az, scope="module"),
     Validator(
         "terraform-waf",

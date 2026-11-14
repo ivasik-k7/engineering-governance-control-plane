@@ -54,7 +54,7 @@ def test_evidence_records_policy_and_rule_versions(registry, bad_service):
     assert report["evidence"]["policy_version"] == registry.policy_version
     assert report["evidence"]["registry_digest"] == registry.digest
     sec014 = next(r for r in report["results"] if r["rule_id"] == "SEC-014")
-    assert sec014["rule_version"] == "1.1.0"
+    assert sec014["rule_version"] == "1.2.0"
     assert sec014["findings"][0]["file"] == "app/auth.py"
     assert sec014["findings"][0]["line_start"] == 18
 

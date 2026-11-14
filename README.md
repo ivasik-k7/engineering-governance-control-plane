@@ -312,8 +312,16 @@ emitted as suppressions).
 | `pan-detection` (Luhn-valid card numbers; published test numbers ignored; masked output) | PCI-001 |
 | `weak-tls-version` (Python, Node.js, ALB policies, CloudFront) | SEC-050 |
 | `terraform-multi-az`, `terraform-waf` | RES-001, SEC-060 |
+| `insecure-random`, `command-injection`, `unsafe-deserialization` (Python, JVM, Go, JS) | SEC-016, SEC-021, SEC-022 |
+| `spring-csrf-disabled`, `xxe`, `actuator-exposure` | JVM-001, JVM-002, JVM-003 |
+| `go-http-timeouts` | GO-001 |
 
-External adapters: `ruff` (PY-001) and `pip-audit` (SEC-010). Semgrep rules use
+JWT, password hashing, SQL, TLS verification, weak TLS and sensitive-logging checks cover Python,
+TypeScript/JavaScript, Java, Kotlin and Go: jjwt, java-jwt, golang-jwt; JDBC, `JdbcTemplate`, JPA,
+Kotlin templates, `database/sql`, GORM; trust-all `X509TrustManager`, `InsecureSkipVerify`.
+
+External adapters: `ruff` (PY-001), `pip-audit` (SEC-010, Python) and `osv-scanner` (SEC-011:
+Maven, Gradle lockfiles, Go modules, npm; findings at CVSS 9.0 and above). Semgrep rules use
 `validation: {type: semgrep, id: <rule id>, config: enforcement/semgrep/<file>.yaml}`, and the
 config is read from the registry, so it also works from bundles.
 
@@ -435,8 +443,9 @@ adr/                      architecture decisions
   does not judge whether the design is sound.
 - Authoritative evidence depends on the CI job being outside the repository's control. If a
   repository can edit its own workflow, it can change `GOV_REGISTRY` and `GOV_TRUSTED_KEYS`.
-- Validators beyond secret scanning cover Python, TypeScript/JavaScript, Terraform and
-  Kubernetes YAML only. Other languages are reported as coverage gaps, not passed.
+- Validators beyond secret scanning cover Python, TypeScript/JavaScript, Java, Kotlin, Go,
+  Terraform and Kubernetes YAML. C#, Scala, PHP, Ruby and others are reported as coverage gaps,
+  not passed.
 - Components come from the catalog only; CODEOWNERS is not used.
 - No ServiceNow importer yet; produce the external catalog format from the CMDB.
 - `pip-audit` on a `pyproject.toml` project creates a temporary virtualenv, which requires
@@ -449,5 +458,5 @@ adr/                      architecture decisions
 1. Remote MCP over Streamable HTTP with SSO, per-team registries and stored evidence.
 2. Agent-level evals: run Claude Code and Codex against task fixtures and score rule adherence
    from `validate_changes` output.
-3. Adapters for Checkov and OPA/Conftest; more language packs (Go, Java).
+3. Adapters for Checkov and OPA/Conftest; C# (.NET) language pack.
 4. Traceability export per release from decision records; NBU control mapping; ServiceNow catalog importer.

@@ -1,0 +1,6 @@
+id: go-service
+title: Go service
+match:
+  languages: [go]
+categories: [security, backend, quality, architecture, compliance]
+default_environment: production
