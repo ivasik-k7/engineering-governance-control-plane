@@ -206,7 +206,11 @@ def resolve_context(
     config: ProjectConfig | None = None,
     identity: Identity | None = None,
     inventory: Inventory | None = None,
+    catalog: tuple[CatalogEntry | None, dict[str, Any]] | None = None,
+    evidence: dict[str, list[str]] | None = None,
 ) -> Context:
+    """Collect facts and build the context. `catalog` and `evidence` replace the catalog lookup and
+    code-signal collection; decision replay uses them to re-run resolution on recorded inputs."""
     if config is None and root:
         config = load_project(root)
     name = project or (config.project if config else "unknown")
@@ -244,7 +248,7 @@ def resolve_context(
             )
     profiles = {p.id: p for p in [*detected, *pinned]}
 
-    catalog, catalog_info = _lookup_catalog(registry, identity, diagnostics)
+    catalog, catalog_info = catalog if catalog is not None else _lookup_catalog(registry, identity, diagnostics)
     if catalog:
         floor, floor_source = catalog.environment, f"catalog:{catalog.id}"
     elif identity.verified:
@@ -312,7 +316,7 @@ def resolve_context(
         environment=effective,
         environment_trace={"requested": requested, "floor": floor, "floor_source": floor_source},
         declared_tasks=declared_tasks(registry, task),
-        evidence_tasks=evidence_tasks(registry, paths, contents),
+        evidence_tasks=evidence if evidence is not None else evidence_tasks(registry, paths, contents),
         task_description=task,
         paths=paths,
         target_languages=target_languages,
@@ -361,121 +365,196 @@ def _service_contexts(
     return contexts
 
 
-def dimension_reasons(rule: Rule, ctx: Context, service: ServiceContext) -> list[str] | None:
-    """Check service-attribute dimensions and the CEL `when` expression against one service context."""
+@dataclass(frozen=True)
+class Check:
+    """One evaluated condition. Codes ending in _MISMATCH, _BELOW_MINIMUM, _FALSE or _EXCLUDED explain
+    why a rule does not apply; NOT_TARGETED_* codes keep a mandatory rule but mark it not relevant."""
+
+    code: str
+    detail: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"code": self.code, "detail": self.detail}
+
+
+@dataclass
+class ScopeEval:
+    applies: bool
+    relevant: bool
+    checks: list[Check]
+
+    @property
+    def reasons(self) -> list[str]:
+        return [c.detail for c in self.checks]
+
+    @property
+    def miss(self) -> Check | None:
+        return self.checks[-1] if not self.applies and self.checks else None
+
+
+def evaluate_dimensions(rule: Rule, ctx: Context, service: ServiceContext) -> tuple[bool, list[Check]]:
+    """Service-attribute dimensions and the CEL `when` expression against one service context."""
     s, model = rule.applies_to, ctx.model
-    reasons: list[str] = []
-    for key in ("data_categories", "regulatory_scope"):
+    checks: list[Check] = []
+    for key, code in (("data_categories", "DATA_CATEGORY"), ("regulatory_scope", "REGULATORY_SCOPE")):
         wanted = getattr(s, key)
         if wanted:
             have = service.value(key)
             hit = sorted(set(wanted) & set(have))
+            trust = service.attributes[key].trust
             if not hit:
-                return None
-            reasons.append(f"{key}: {', '.join(hit)} ({service.attributes[key].trust})")
+                checks.append(
+                    Check(
+                        f"{code}_MISMATCH",
+                        f"{key}: requires one of {', '.join(wanted)}; has {', '.join(have) or 'none'}",
+                    )
+                )
+                return False, checks
+            checks.append(Check(f"{code}_MATCH", f"{key}: {', '.join(hit)} ({trust})"))
     if s.exposure:
-        if service.value("exposure") not in s.exposure:
-            return None
-        reasons.append(f"exposure: {service.value('exposure')}")
-    for key, dim in (
-        ("min_data_classification", "data_classification"),
-        ("min_service_tier", "service_tier"),
+        value = service.value("exposure")
+        if value not in s.exposure:
+            checks.append(Check("EXPOSURE_MISMATCH", f"exposure: requires {', '.join(s.exposure)}; has {value}"))
+            return False, checks
+        checks.append(Check("EXPOSURE_MATCH", f"exposure: {value}"))
+    for key, dim, code in (
+        ("min_data_classification", "data_classification", "CLASSIFICATION"),
+        ("min_service_tier", "service_tier", "TIER"),
     ):
         minimum = getattr(s, key)
         if minimum:
             value = service.value(dim)
             if model.rank(dim, value) < model.rank(dim, minimum):
-                return None
-            reasons.append(f"{dim}: {value} >= {minimum} ({service.attributes[dim].trust})")
+                checks.append(Check(f"{code}_BELOW_MINIMUM", f"{dim}: {value} < {minimum}"))
+                return False, checks
+            checks.append(Check(f"{code}_AT_LEAST", f"{dim}: {value} >= {minimum} ({service.attributes[dim].trust})"))
     if rule.when:
         try:
             if not evaluate(rule.when, ctx.activation(service)):
-                return None
-            reasons.append(f"when: {rule.when}")
+                checks.append(Check("WHEN_FALSE", f"when: {rule.when}"))
+                return False, checks
+            checks.append(Check("WHEN_TRUE", f"when: {rule.when}"))
         except CelError as exc:
             ctx.diagnose({"type": "when_evaluation_failed", "rule": rule.id, "message": str(exc)})
-            reasons.append("when: evaluation failed, rule included")
-    return reasons
+            checks.append(Check("WHEN_ERROR_INCLUDED", "when: evaluation failed, rule included"))
+    return True, checks
 
 
-def scope_reasons(
+def dimension_reasons(rule: Rule, ctx: Context, service: ServiceContext) -> list[str] | None:
+    ok, checks = evaluate_dimensions(rule, ctx, service)
+    return [c.detail for c in checks] if ok else None
+
+
+def evaluate_scope(
     rule: Rule, ctx: Context, enforcement: Enforcement | None = None, *, ignore_tasks: bool = False
-) -> tuple[list[str], bool] | None:
-    """Why the rule applies and whether it is relevant to the targeted change, or None.
-
-    Mandatory rules are scoped by trusted and detected facts only; untrusted hints (declared task,
-    target paths) affect their relevance ordering, never their inclusion.
-    """
+) -> ScopeEval:
+    """Mandatory rules are scoped by trusted and detected facts only; untrusted hints (declared task,
+    target paths) affect their relevance, never their inclusion."""
     mandatory = (enforcement or rule.enforcement) is Enforcement.MANDATORY
     s = rule.applies_to
-    reasons: list[str] = []
+    checks: list[Check] = []
     relevant = True
+
+    def miss(code: str, detail: str) -> ScopeEval:
+        checks.append(Check(code, detail))
+        return ScopeEval(False, False, checks)
+
     languages = sorted(set(ctx.facts.languages) | set(ctx.target_languages))
-    for key, have in (
-        ("languages", languages),
-        ("frameworks", ctx.facts.frameworks),
-        ("platforms", ctx.facts.platforms),
+    for key, code, have in (
+        ("languages", "LANGUAGE", languages),
+        ("frameworks", "FRAMEWORK", ctx.facts.frameworks),
+        ("platforms", "PLATFORM", ctx.facts.platforms),
     ):
         wanted = getattr(s, key)
         if not wanted:
             continue
         hit = sorted(set(wanted) & set(have))
         if not hit:
-            return None
+            return miss(
+                f"{code}_MISMATCH",
+                f"{key}: requires one of {', '.join(wanted)}; has {', '.join(have) or 'none'}",
+            )
         if key == "languages" and ctx.target_languages and not set(wanted) & set(ctx.target_languages):
             if not mandatory:
-                return None
+                return miss("TARGET_LANGUAGE_MISMATCH", f"targeted files are {', '.join(ctx.target_languages)}")
             relevant = False
-        reasons.append(f"{key[:-1]}: {', '.join(hit)}")
+            checks.append(Check("NOT_TARGETED_LANGUAGE", f"targeted files are {', '.join(ctx.target_languages)}"))
+        checks.append(Check(f"{code}_MATCH", f"{key[:-1]}: {', '.join(hit)}"))
     if s.environments:
         if ctx.environment not in s.environments:
-            return None
-        reasons.append(f"environment: {ctx.environment}")
+            return miss(
+                "ENVIRONMENT_MISMATCH",
+                f"environment: requires {', '.join(s.environments)}; is {ctx.environment}",
+            )
+        checks.append(Check("ENVIRONMENT_MATCH", f"environment: {ctx.environment}"))
     if s.has_context_dimensions or rule.when:
-        repo_wide = dimension_reasons(rule, ctx, ctx.service)
-        if repo_wide is None:
-            return None
-        if ctx.target_service is not ctx.service and dimension_reasons(rule, ctx, ctx.target_service) is None:
+        ok, dim_checks = evaluate_dimensions(rule, ctx, ctx.service)
+        checks.extend(dim_checks)
+        if not ok:
+            return ScopeEval(False, False, checks)
+        if ctx.target_service is not ctx.service and not evaluate_dimensions(rule, ctx, ctx.target_service)[0]:
             if not mandatory:
-                return None
+                return miss("TARGET_COMPONENT_MISMATCH", "targeted components do not match")
             relevant = False
-        reasons.extend(repo_wide)
+            checks.append(Check("NOT_TARGETED_COMPONENT", "targeted components do not match"))
     if s.tasks and not ignore_tasks:
         hit = sorted(set(s.tasks) & set(ctx.tasks))
         if hit:
-            reasons.append(f"task: {', '.join(hit)}")
+            checks.append(Check("TASK_MATCH", f"task: {', '.join(hit)}"))
         elif mandatory:
-            reasons.append("task-scoped mandatory rule: included regardless of task")
+            checks.append(Check("TASK_SCOPED_MANDATORY", "task-scoped mandatory rule: included regardless of task"))
             relevant = relevant and not ctx.tasks
         elif ctx.tasks:
-            return None
+            return miss("TASK_MISMATCH", f"task: requires {', '.join(s.tasks)}; is {', '.join(ctx.tasks)}")
         else:
-            reasons.append("task unknown: task-scoped rule included")
+            checks.append(Check("TASK_UNKNOWN", "task unknown: task-scoped rule included"))
     if s.paths and ctx.paths and not any(s.matches_path(p) for p in ctx.paths):
         if not mandatory:
-            return None
+            return miss("PATH_MISMATCH", f"paths: requires {', '.join(s.paths)}")
         relevant = False
-    return (reasons or ["applies to all projects"]), relevant
+        checks.append(Check("NOT_TARGETED_PATH", f"paths: requires {', '.join(s.paths)}"))
+    if not checks:
+        checks.append(Check("UNSCOPED", "applies to all projects"))
+    return ScopeEval(True, relevant, checks)
 
 
-def _profile_allows(registry: Registry, rule: Rule, enforcement: Enforcement, ctx: Context) -> bool:
+def scope_reasons(
+    rule: Rule, ctx: Context, enforcement: Enforcement | None = None, *, ignore_tasks: bool = False
+) -> tuple[list[str], bool] | None:
+    result = evaluate_scope(rule, ctx, enforcement, ignore_tasks=ignore_tasks)
+    return (result.reasons, result.relevant) if result.applies else None
+
+
+def _profile_exclusion(registry: Registry, rule: Rule, enforcement: Enforcement, ctx: Context) -> Check | None:
     if enforcement is Enforcement.MANDATORY:
-        return True
+        return None
     if rule.category not in ctx.categories:
-        return False
-    return not any(rule.id in registry.profiles[p].exclude_rules for p in ctx.profiles if p in registry.profiles)
+        return Check(
+            "PROFILE_CATEGORY_EXCLUDED",
+            f"category '{rule.category}' is not in profiles {', '.join(ctx.profiles) or 'none'}",
+        )
+    for p in ctx.profiles:
+        if p in registry.profiles and rule.id in registry.profiles[p].exclude_rules:
+            return Check("PROFILE_RULE_EXCLUDED", f"profile {p} excludes {rule.id}")
+    return None
 
 
-def _apply_override(registry: Registry, rule: Rule, current: Enforcement, ctx: Context) -> Enforcement:
+def _apply_override(
+    registry: Registry, rule: Rule, current: Enforcement, ctx: Context, trace: list[Check] | None = None
+) -> Enforcement:
+    trace = trace if trace is not None else []
     if not ctx.config:
         return current
     for o in ctx.config.overrides:
         if o.rule != rule.id:
             continue
         if o.enforcement.rank <= current.rank:
+            if o.enforcement is not current:
+                trace.append(Check("OVERRIDE_TIGHTENED", f"project config: {current.value} -> {o.enforcement.value}"))
             return o.enforcement
         protected = registry.layer_rank(rule.layer) <= registry.layer_rank("regulatory")
         if current is Enforcement.MANDATORY or protected:
+            trace.append(Check("OVERRIDE_REJECTED", f"project config asked for {o.enforcement.value}"))
             ctx.diagnose(
                 {
                     "type": "override_rejected",
@@ -486,6 +565,7 @@ def _apply_override(registry: Registry, rule: Rule, current: Enforcement, ctx: C
                 }
             )
             return current
+        trace.append(Check("OVERRIDE_RELAXED", f"project config: {current.value} -> {o.enforcement.value}"))
         return o.enforcement
     return current
 
@@ -535,30 +615,98 @@ def _relevance(rule: Rule, ctx: Context, reasons: list[str]) -> float:
     return score
 
 
-def resolve_rules(
+@dataclass
+class RuleDecision:
+    rule: Rule
+    applied: bool
+    enforcement: Enforcement
+    checks: list[Check]
+    enforcement_trace: list[Check]
+    relevant: bool = False
+    waivers: list[str] = field(default_factory=list)
+    superseded_by: str | None = None
+
+    @property
+    def outcome(self) -> str:
+        if self.superseded_by:
+            return "SUPERSEDED"
+        if self.applied:
+            return "APPLIED"
+        return self.checks[-1].code if self.checks else "NOT_APPLIED"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "rule_id": self.rule.id,
+            "rule_version": self.rule.version,
+            "applied": self.applied and not self.superseded_by,
+            "outcome": self.outcome,
+            "enforcement": self.enforcement.value,
+            "base_enforcement": self.rule.enforcement.value,
+            "relevant_to_change": self.relevant if self.applied else None,
+            "checks": [c.to_dict() for c in self.checks],
+            "enforcement_trace": [c.to_dict() for c in self.enforcement_trace],
+            "waivers": self.waivers,
+            "superseded_by": self.superseded_by,
+        }
+
+
+def decide_rules(
     registry: Registry, ctx: Context, *, ignore_tasks: bool = False, today: dt.date | None = None
-) -> tuple[list[ResolvedRule], list[dict[str, Any]]]:
-    """All rules that apply to the context, sorted by enforcement then relevance, plus conflicts."""
+) -> tuple[dict[str, RuleDecision], dict[str, ResolvedRule], list[dict[str, Any]]]:
+    """A decision for every rule in the registry, the applied subset, and conflicts."""
+    decisions: dict[str, RuleDecision] = {}
     resolved: dict[str, ResolvedRule] = {}
     for rule in registry.rules.values():
-        enforcement = _apply_override(registry, rule, rule.effective_enforcement(ctx.environment), ctx)
-        if not _profile_allows(registry, rule, enforcement, ctx):
+        trace: list[Check] = []
+        base = rule.effective_enforcement(ctx.environment)
+        if base is not rule.enforcement:
+            trace.append(
+                Check("ENVIRONMENT_ENFORCEMENT", f"{ctx.environment}: {rule.enforcement.value} -> {base.value}")
+            )
+        enforcement = _apply_override(registry, rule, base, ctx, trace)
+        excluded = _profile_exclusion(registry, rule, enforcement, ctx)
+        if excluded:
+            decisions[rule.id] = RuleDecision(rule, False, enforcement, [excluded], trace)
             continue
-        scoped = scope_reasons(rule, ctx, enforcement, ignore_tasks=ignore_tasks)
-        if scoped is None:
+        scope = evaluate_scope(rule, ctx, enforcement, ignore_tasks=ignore_tasks)
+        if not scope.applies:
+            decisions[rule.id] = RuleDecision(rule, False, enforcement, scope.checks, trace)
             continue
-        reasons, relevant = scoped
+        reasons = scope.reasons
         if enforcement is not rule.enforcement:
             reasons = [*reasons, f"enforcement {rule.enforcement.value} -> {enforcement.value}"]
+        waivers = matching_waivers(registry, rule, ctx.identity.id, ctx, today)
         resolved[rule.id] = ResolvedRule(
             rule=rule,
             enforcement=enforcement,
             score=_relevance(rule, ctx, reasons),
             reasons=reasons,
-            relevant=relevant,
-            waivers=matching_waivers(registry, rule, ctx.identity.id, ctx, today),
+            relevant=scope.relevant,
+            waivers=waivers,
         )
+        decisions[rule.id] = RuleDecision(
+            rule, True, enforcement, scope.checks, trace, scope.relevant, [w.id for w in waivers]
+        )
+    conflicts = _resolve_conflicts(registry, resolved)
+    for rr in resolved.values():
+        if rr.superseded_by:
+            decisions[rr.rule.id].superseded_by = rr.superseded_by
+    return decisions, resolved, conflicts
 
+
+def resolve_rules(
+    registry: Registry, ctx: Context, *, ignore_tasks: bool = False, today: dt.date | None = None
+) -> tuple[list[ResolvedRule], list[dict[str, Any]]]:
+    """All rules that apply to the context, sorted by enforcement then relevance, plus conflicts."""
+    _, resolved, conflicts = decide_rules(registry, ctx, ignore_tasks=ignore_tasks, today=today)
+    ordered = sorted(
+        resolved.values(),
+        key=lambda r: (r.enforcement.rank, not r.relevant, -r.score, r.rule.severity.rank, r.rule.id),
+    )
+    return ordered, conflicts
+
+
+def _resolve_conflicts(registry: Registry, resolved: dict[str, ResolvedRule]) -> list[dict[str, Any]]:
     conflicts: list[dict[str, Any]] = []
     seen: set[frozenset[str]] = set()
     for rr in list(resolved.values()):
@@ -595,11 +743,7 @@ def resolve_rules(
                 }
             )
 
-    ordered = sorted(
-        resolved.values(),
-        key=lambda r: (r.enforcement.rank, not r.relevant, -r.score, r.rule.severity.rank, r.rule.id),
-    )
-    return ordered, conflicts
+    return conflicts
 
 
 def applicable_rules_payload(

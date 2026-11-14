@@ -13,7 +13,6 @@ from governance.changes import git_diff
 from governance.design import validate_design as _validate_design
 from governance.project import find_project_root
 from governance.registry import RegistryError
-from governance.resolver import applicable_rules_payload
 from governance.session import Session, open_session
 
 INSTRUCTIONS = """\
@@ -86,10 +85,31 @@ def create_server(registry_path: str | Path | None = None, repo_root: str | Path
             include_requirements: Include each rule's full requirement text.
             repo_path: Repository root.
         """
-        s = session(repo_path)
-        reg = s.registry
-        ctx = s.context(task=task, environment=environment, paths=paths)
-        return applicable_rules_payload(reg, ctx, limit=max(0, limit), include_body=include_requirements)
+        return session(repo_path).applicable_rules(
+            limit=max(0, limit), include_body=include_requirements, task=task, environment=environment, paths=paths
+        )
+
+    @mcp.tool(annotations=READ_ONLY)
+    def explain_decision(
+        rule_id: str,
+        task: str = "",
+        paths: list[str] | None = None,
+        environment: str | None = None,
+        repo_path: str | None = None,
+    ) -> dict[str, Any]:
+        """Explain why a rule applies or does not apply to this repository and change.
+
+        Returns the outcome (APPLIED, SUPERSEDED or the reason code that excluded it, such as
+        LANGUAGE_MISMATCH or TIER_BELOW_MINIMUM), every evaluated check, and how enforcement was derived.
+
+        Args:
+            rule_id: Rule identifier, e.g. "SEC-014".
+            task: Natural-language description of the work.
+            paths: Repository-relative files you expect to create or modify.
+            environment: development, staging or production.
+            repo_path: Repository root.
+        """
+        return session(repo_path).explain(rule_id, task=task, environment=environment, paths=paths)
 
     @mcp.tool(annotations=READ_ONLY)
     def explain_rule(rule_id: str) -> dict[str, Any]:

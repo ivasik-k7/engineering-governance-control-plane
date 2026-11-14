@@ -23,7 +23,9 @@ Before implementing or modifying code:
 2. Call `get_applicable_rules` and treat every HARD rule as a constraint, not a suggestion.
 3. For non-trivial designs, call `validate_design` before writing code.
 4. Before reporting completion, call `validate_changes`. Do not claim compliance unless it returns
-   `compliance_claim_allowed: true`; report `manual_review_required` rules to the user.
+   `compliance_claim_allowed: true`; report `manual_review_required` rules and pending
+   `obligations` (reviewers, artefacts such as a threat model) to the user.
+5. To understand why a rule does or does not apply, call `explain_decision`; do not guess.
 
 Governance MCP server: `{server}`.
 
@@ -98,6 +100,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
   security-events: write
 
 jobs:
@@ -120,14 +123,36 @@ jobs:
           printf '%s\\n' "${{{{ vars.GOVERNANCE_PUBLIC_KEY }}}}" > "$dir/policy.pub"
           echo "GOV_REGISTRY=$dir/bundle.json" >> "$GITHUB_ENV"
           echo "GOV_TRUSTED_KEYS=$dir/policy.pub" >> "$GITHUB_ENV"
-      - name: Validate changes
+      - name: Load decision-record signing key
+        env:
+          SIGNING_KEY: ${{{{ secrets.GOVERNANCE_SIGNING_KEY }}}}
         run: |
-          if [ "${{{{ github.event_name }}}}" = "pull_request" ]; then
-            gov validate --base "origin/${{{{ github.base_ref }}}}" --fail-closed --require-authoritative \\
-              --format sarif --output governance.sarif
-          else
-            gov validate --fail-closed --require-authoritative --format sarif --output governance.sarif
+          if [ -n "$SIGNING_KEY" ]; then
+            printf '%s\\n' "$SIGNING_KEY" > "$RUNNER_TEMP/governance/signing.key"
+            chmod 600 "$RUNNER_TEMP/governance/signing.key"
+            echo "GOV_SIGNING_KEY=$RUNNER_TEMP/governance/signing.key" >> "$GITHUB_ENV"
           fi
+      - name: Validate changes
+        env:
+          GITHUB_TOKEN: ${{{{ github.token }}}}
+          GOV_GITHUB_TOKEN: ${{{{ secrets.GOVERNANCE_GITHUB_TOKEN }}}}
+          GOV_PR_HEAD_SHA: ${{{{ github.event.pull_request.head.sha }}}}
+        run: |
+          common="--fail-closed --require-authoritative --enforce-obligations --record governance-decision.json"
+          if [ "${{{{ github.event_name }}}}" = "pull_request" ]; then
+            gov validate --base "origin/${{{{ github.base_ref }}}}" \\
+              --github-pr "${{{{ github.event.pull_request.number }}}}" \\
+              $common --format sarif --output governance.sarif
+          else
+            gov validate $common --format sarif --output governance.sarif
+          fi
+      - name: Keep decision record
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: governance-decision
+          path: governance-decision.json
+          if-no-files-found: ignore
       - name: Upload SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v4

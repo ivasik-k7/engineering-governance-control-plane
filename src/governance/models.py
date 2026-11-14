@@ -140,6 +140,7 @@ class Rule:
     references: tuple[str, ...] = ()
     review_by: dt.date | None = None
     when: str | None = None
+    controls: tuple[str, ...] = ()
 
     def effective_enforcement(self, environment: str | None) -> Enforcement:
         if environment and environment in self.environment_enforcement:
@@ -160,6 +161,7 @@ class Rule:
             "source": self.source,
             "validator": self.validation.ref,
             "waiver_allowed": self.waiver_allowed,
+            "controls": list(self.controls),
         }
 
 
@@ -269,6 +271,9 @@ class Component:
     def covers(self, path: str) -> bool:
         return any(fnmatch.fnmatch(path, p) for p in self.paths)
 
+    def to_dict(self) -> dict[str, Any]:
+        return {"id": self.id, "paths": list(self.paths), "owner": self.owner, **self.attributes}
+
 
 @dataclass(frozen=True)
 class CatalogEntry:
@@ -291,8 +296,45 @@ class CatalogEntry:
             **{k: v for k, v in self.attributes.items() if k in ATTRIBUTE_KEYS},
         }
 
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {
+            "id": self.id,
+            "match": list(self.match),
+            "environment": self.environment,
+            "owner": self.owner,
+            **self.attributes,
+        }
+        if self.components:
+            d["components"] = [c.to_dict() for c in self.components]
+        return d
+
     def component_for(self, path: str) -> Component | None:
         return next((c for c in self.components if c.covers(path)), None)
+
+
+@dataclass(frozen=True)
+class Artefact:
+    id: str
+    description: str
+    paths: tuple[str, ...]
+
+    def satisfied_by(self, files: list[str]) -> list[str]:
+        return [f for f in files if any(fnmatch.fnmatch(f, p) for p in self.paths)]
+
+
+@dataclass(frozen=True)
+class Obligation:
+    """A process requirement (reviewers, artefacts) triggered by a CEL condition over the context."""
+
+    id: str
+    title: str
+    enforcement: Enforcement
+    when: str
+    reviewers: tuple[str, ...] = ()
+    artefacts: tuple[Artefact, ...] = ()
+    owner: str = ""
+    controls: tuple[str, ...] = ()
+    source: str = ""
 
 
 @dataclass
@@ -311,3 +353,12 @@ class ProjectFacts:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> ProjectFacts:
+        return cls(
+            list(d.get("languages", [])),
+            list(d.get("frameworks", [])),
+            list(d.get("platforms", [])),
+            {k: list(v) for k, v in d.get("evidence", {}).items()},
+        )

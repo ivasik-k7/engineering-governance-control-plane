@@ -8,10 +8,18 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from governance import __version__
+from governance.compliance import control_coverage, evaluate_obligations, pending_mandatory
 from governance.detect import CODE_LANGUAGES, language_of
 from governance.models import Enforcement, Rule
 from governance.registry import Registry
-from governance.resolver import Context, ResolvedRule, dimension_reasons, matching_waivers, resolve_rules
+from governance.resolver import (
+    Context,
+    ResolvedRule,
+    decide_rules,
+    dimension_reasons,
+    matching_waivers,
+    resolve_rules,
+)
 from governance.validators import BUILTIN, FileSet, Finding
 from governance.validators.external import run_semgrep, run_tool
 
@@ -230,6 +238,8 @@ def validate(
     strict: bool = False,
     run_external: bool = True,
     today: dt.date | None = None,
+    approvals: set[str] | None = None,
+    enforce_obligations: bool = False,
 ) -> dict[str, Any]:
     root = Path(ctx.root) if ctx.root else None
     scope, exclusions_applied = _exclusion_scope(registry, ctx, fs, today)
@@ -269,6 +279,10 @@ def validate(
         results.append(result)
 
     gaps = coverage_gaps(registry, ctx, fs, scope)
+    decisions, _, _ = decide_rules(registry, ctx, today=today)
+    repo_files = ctx.inventory.files if ctx.inventory else sorted(fs.files)
+    obligations = evaluate_obligations(registry, ctx, repo_files, approvals)
+    pending = pending_mandatory(obligations)
     grade, grade_reasons = evidence_grade(ctx)
     results.sort(key=lambda r: (not r.blocking, STATUS_ORDER.index(r.status), r.enforcement.rank, r.rule.id))
     blocking = [r.rule.id for r in results if r.blocking]
@@ -280,9 +294,9 @@ def validate(
         r.rule.id for r in results if r.enforcement is Enforcement.MANDATORY and r.status in ("error", "skipped")
     ]
 
-    if blocking or policy_conflicts or (gaps and fail_closed):
+    if blocking or policy_conflicts or (gaps and fail_closed) or (pending and enforce_obligations):
         verdict = "fail"
-    elif manual:
+    elif manual or pending:
         verdict = "pass_pending_manual_review"
     elif warnings or errors or gaps:
         verdict = "pass_with_warnings"
@@ -291,13 +305,14 @@ def validate(
 
     return {
         "verdict": verdict,
-        "compliance_claim_allowed": verdict == "pass" and not unverified and not gaps,
+        "compliance_claim_allowed": verdict == "pass" and not unverified and not gaps and not pending,
         "evidence_grade": grade,
         "summary": {
             "blocking": blocking,
             "warnings": warnings,
             "errors": errors,
             "manual_review_required": manual,
+            "obligations_pending": pending,
             "unverified_mandatory": unverified,
             "coverage_gaps": gaps,
             "policy_conflicts": policy_conflicts,
@@ -329,11 +344,16 @@ def validate(
             "evidence_tasks": ctx.evidence_tasks,
             "inventory": ctx.inventory.to_dict() if ctx.inventory else None,
             "fail_closed": fail_closed,
+            "enforce_obligations": enforce_obligations,
+            "approvals": sorted(approvals or []),
             "strict": strict,
             "files": sorted(fs.changed) if fs.changed is not None else sorted(fs.files),
             "deleted_files": fs.deleted,
             "exclusions": exclusions_applied,
         },
         "results": [r.to_dict() for r in results],
+        "obligations": obligations,
+        "controls": control_coverage(registry, decisions, [r.to_dict() for r in results], obligations),
+        "decisions": [d.to_dict() for d in decisions.values()],
         "diagnostics": ctx.diagnostics,
     }

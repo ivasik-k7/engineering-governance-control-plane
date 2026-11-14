@@ -46,7 +46,7 @@ async def test_get_applicable_rules(bad_service):
     ids = [r["id"] for r in result["rules"]]
     assert ids[0] in ("SEC-014", "SEC-015")
     assert {"SEC-014", "SEC-015", "QA-008"} <= set(ids)
-    assert result["policy_version"] == "1.1.0"
+    assert result["policy_version"] == "1.2.0"
     assert any(d["type"] == "override_rejected" for d in result["diagnostics"])
 
 
@@ -73,7 +73,7 @@ async def test_policy_resource(bad_service):
     async with Client(create_server(repo_root=bad_service)) as client:
         res = await client.read_resource("governance://policy")
         rule = await client.read_resource("governance://rules/SEC-001")
-    assert json.loads(res.contents[0].text)["policy_version"] == "1.1.0"
+    assert json.loads(res.contents[0].text)["policy_version"] == "1.2.0"
     assert "Secrets must not be hardcoded" in rule.contents[0].text
 
 
@@ -85,3 +85,12 @@ async def test_repo_path_outside_server_root_is_rejected(good_service, tmp_path)
     async with Client(create_server(repo_root=good_service)) as client:
         result = await client.call_tool("resolve_context", {"repo_path": str(tmp_path)})
     assert result.is_error
+
+
+async def test_explain_decision_and_obligations(bad_service):
+    async with Client(create_server(repo_root=bad_service)) as client:
+        decision = payload(await client.call_tool("explain_decision", {"rule_id": "FE-002"}))
+        rules = payload(await client.call_tool("get_applicable_rules", {"task": "add jwt login"}))
+    assert decision["outcome"] == "LANGUAGE_MISMATCH"
+    assert decision["checks"][0]["code"] == "LANGUAGE_MISMATCH"
+    assert {o["id"] for o in rules["obligations"]} >= {"OBL-001", "OBL-002"}

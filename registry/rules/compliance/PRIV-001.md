@@ -17,6 +17,10 @@ validation:
 design_checks:
   - question: How long is each personal-data field kept, and how is erasure on request implemented?
     signals: [retention, erasure, right to be forgotten, delete, anonymi, pseudonymi]
+controls:
+  - "GDPR:Art.5(1)(e)"
+  - "GDPR:Art.17"
+  - "ISO-27001-2022:A.8.10"
 owner: privacy-office
 review_by: 2027-06-30
 references:

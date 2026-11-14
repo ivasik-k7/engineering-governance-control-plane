@@ -1,6 +1,6 @@
 # Engineering Governance project configuration. Managed with `gov`.
 project: engineering-governance
-policy_version: 1.1.0
+policy_version: 1.2.0
 registry: registry
 profiles:
 - python-lib
