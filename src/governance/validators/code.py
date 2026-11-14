@@ -50,9 +50,7 @@ def hardcoded_secrets(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
             if m := ASSIGNED_SECRET.search(line):
                 value = m.group("value")
                 if not PLACEHOLDER.match(value) and not value.startswith(("os.", "process.env", "env(")):
-                    yield Finding(
-                        path, no, f"Literal value assigned to '{m.group(1)}'.", snippet=_redact(line, value)
-                    )
+                    yield Finding(path, no, f"Literal value assigned to '{m.group(1)}'.", snippet=_redact(line, value))
 
 
 JWT_PATTERNS = (
@@ -99,9 +97,7 @@ def _call_end(text: str, start: int) -> int:
     return len(text) - 1
 
 
-WEAK_HASH = re.compile(
-    r"""(hashlib\.(md5|sha1|sha224|sha256|sha512)\s*\(|createHash\(\s*["'](md5|sha1|sha256)["'])"""
-)
+WEAK_HASH = re.compile(r"""(hashlib\.(md5|sha1|sha224|sha256|sha512)\s*\(|createHash\(\s*["'](md5|sha1|sha256)["'])""")
 
 
 def weak_password_hash(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
@@ -165,9 +161,7 @@ def sensitive_logging(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
     for no, line in enumerate(text.splitlines(), 1):
         if (m := LOG_CALL.search(line)) and (s := SENSITIVE.search(line[m.end() :])):
             arg_text = line[m.end() :]
-            if re.search(
-                r"\{[^}]*" + re.escape(s.group(0)) + r"|,\s*\w*" + re.escape(s.group(0)), arg_text, re.I
-            ):
+            if re.search(r"\{[^}]*" + re.escape(s.group(0)) + r"|,\s*\w*" + re.escape(s.group(0)), arg_text, re.I):
                 yield Finding(path, no, f"Log call includes '{s.group(0)}'.", snippet=snippet(line))
 
 
@@ -230,9 +224,7 @@ def react_dangerous_html(path: str, text: str, fs: FileSet) -> Iterator[Finding]
         if "dangerouslySetInnerHTML" in line:
             window = " ".join(lines[no - 1 : no + 2])
             if not re.search(r"\b(DOMPurify\.sanitize|sanitize(Html)?)\s*\(", window):
-                yield Finding(
-                    path, no, "dangerouslySetInnerHTML without sanitisation.", snippet=snippet(line)
-                )
+                yield Finding(path, no, "dangerouslySetInnerHTML without sanitisation.", snippet=snippet(line))
 
 
 SECRET_SUFFIXES = (
@@ -291,9 +283,7 @@ VALIDATORS = [
     Validator("jwt-validation", "Disabled or incomplete JWT verification", (*PY, *JS), jwt_validation),
     Validator("weak-password-hash", "Fast hashes applied to passwords", (*PY, *JS), weak_password_hash),
     Validator("sql-string-building", "SQL built with string formatting", PY, sql_string_building),
-    Validator(
-        "tls-verification-disabled", "Disabled TLS certificate verification", PY, tls_verification_disabled
-    ),
+    Validator("tls-verification-disabled", "Disabled TLS certificate verification", PY, tls_verification_disabled),
     Validator("sensitive-logging", "Secrets or tokens in log calls", PY, sensitive_logging),
     Validator("bare-except", "Bare except clauses", PY, bare_except),
     Validator("blocking-in-async", "Blocking calls inside async functions", PY, blocking_in_async),

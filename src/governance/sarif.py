@@ -23,12 +23,8 @@ def to_sarif(report: dict[str, Any], registry: Registry) -> dict[str, Any]:
             "id": rid,
             "name": rule.title,
             "shortDescription": {"text": rule.title},
-            "fullDescription": {
-                "text": rule.body.split("\n\n## ", 1)[0].replace("## Requirement", "").strip()
-            },
-            "defaultConfiguration": {
-                "level": "error" if rule.enforcement.value == "mandatory" else "warning"
-            },
+            "fullDescription": {"text": rule.body.split("\n\n## ", 1)[0].replace("## Requirement", "").strip()},
+            "defaultConfiguration": {"level": "error" if rule.enforcement.value == "mandatory" else "warning"},
             "properties": props,
         }
         if rule.references:
@@ -38,9 +34,7 @@ def to_sarif(report: dict[str, Any], registry: Registry) -> dict[str, Any]:
     results = []
     for r in report["results"]:
         level = "error" if r["blocking"] else "warning" if r["enforcement"] != "advisory" else "note"
-        for f, waiver in [(f, None) for f in r["findings"]] + [
-            (f, f["waiver"]) for f in r.get("waived_findings", [])
-        ]:
+        for f, waiver in [(f, None) for f in r["findings"]] + [(f, f["waiver"]) for f in r.get("waived_findings", [])]:
             result: dict[str, Any] = {
                 "ruleId": r["rule_id"],
                 "level": level,
@@ -70,9 +64,7 @@ def to_sarif(report: dict[str, Any], registry: Registry) -> dict[str, Any]:
         "version": "2.1.0",
         "runs": [
             {
-                "tool": {
-                    "driver": {"name": "engineering-governance", "version": __version__, "rules": rules}
-                },
+                "tool": {"driver": {"name": "engineering-governance", "version": __version__, "rules": rules}},
                 "results": results,
                 "properties": {
                     "verdict": report["verdict"],

@@ -10,10 +10,7 @@ def test_validate_exit_codes(bad_service, good_service, capsys):
 
 def test_validate_json_and_sarif_output(bad_service, tmp_path, capsys):
     out = tmp_path / "r.sarif"
-    assert (
-        main(["validate", "--path", str(bad_service), "--no-external", "--format", "sarif", "-o", str(out)])
-        == 1
-    )
+    assert main(["validate", "--path", str(bad_service), "--no-external", "--format", "sarif", "-o", str(out)]) == 1
     assert json.loads(out.read_text())["version"] == "2.1.0"
     capsys.readouterr()
     main(["validate", "--path", str(bad_service), "--no-external", "--format", "json"])
@@ -22,9 +19,7 @@ def test_validate_json_and_sarif_output(bad_service, tmp_path, capsys):
 
 def test_validate_diff_from_file(good_service, tmp_path):
     diff = tmp_path / "c.diff"
-    diff.write_text(
-        "--- a/app/auth.py\n+++ b/app/auth.py\n@@ -1,0 +1,1 @@\n+x = requests.get(u, verify=False)\n"
-    )
+    diff.write_text("--- a/app/auth.py\n+++ b/app/auth.py\n@@ -1,0 +1,1 @@\n+x = requests.get(u, verify=False)\n")
     (good_service / "app" / "auth.py").write_text("x = requests.get(u, verify=False)\n")
     assert main(["validate", "--path", str(good_service), "--no-external", "--diff", str(diff)]) == 1
 

@@ -65,9 +65,7 @@ WEAK_TLS = (
         "CloudFront minimum protocol version below TLS 1.2.",
     ),
     (
-        re.compile(
-            r"""ssl_policy\s*=\s*"ELBSecurityPolicy-(2015-05|2016-08|TLS-1-0-2015-04|TLS-1-1-2017-01)\""""
-        ),
+        re.compile(r"""ssl_policy\s*=\s*"ELBSecurityPolicy-(2015-05|2016-08|TLS-1-0-2015-04|TLS-1-1-2017-01)\""""),
         "Load balancer TLS policy allows TLS below 1.2.",
     ),
     (re.compile(r"""minVersion\s*:\s*["']TLSv1(\.1)?["']"""), "Node.js minimum TLS version below 1.2."),
@@ -93,9 +91,7 @@ def terraform_multi_az(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
     for b in blocks(text):
         attr = MULTI_AZ.get(b.labels[0]) if b.kind == "resource" and b.labels else None
         if attr and (b.attr(attr) or "").lower() != "true":
-            yield Finding(
-                path, b.line, f"{b.address}: {attr} is not true.", snippet=f'resource "{b.labels[0]}"'
-            )
+            yield Finding(path, b.line, f"{b.address}: {attr} is not true.", snippet=f'resource "{b.labels[0]}"')
 
 
 def terraform_waf(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
@@ -109,9 +105,7 @@ def terraform_waf(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
             lb_type = b.attr("load_balancer_type") or "application"
             if internal or lb_type != "application":
                 continue
-            if not re.search(
-                rf"aws_wafv2_web_acl_association[\s\S]*?{rtype}\.{re.escape(name)}\.arn", module_text
-            ):
+            if not re.search(rf"aws_wafv2_web_acl_association[\s\S]*?{rtype}\.{re.escape(name)}\.arn", module_text):
                 yield Finding(
                     path,
                     b.line,
@@ -119,9 +113,7 @@ def terraform_waf(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
                     snippet=f'resource "{rtype}" "{name}"',
                 )
         elif rtype == "aws_cloudfront_distribution" and not b.attr("web_acl_id"):
-            yield Finding(
-                path, b.line, f"{b.address} has no web_acl_id.", snippet=f'resource "{rtype}" "{name}"'
-            )
+            yield Finding(path, b.line, f"{b.address} has no web_acl_id.", snippet=f'resource "{rtype}" "{name}"')
 
 
 VALIDATORS = [
@@ -131,9 +123,7 @@ VALIDATORS = [
         (*SECRET_SUFFIXES, ".csv", ".log"),
         pan_detection,
     ),
-    Validator(
-        "weak-tls-version", "TLS versions below 1.2", (".py", ".tf", ".js", ".ts", ".mjs"), weak_tls_version
-    ),
+    Validator("weak-tls-version", "TLS versions below 1.2", (".py", ".tf", ".js", ".ts", ".mjs"), weak_tls_version),
     Validator("terraform-multi-az", "Single-AZ databases and caches", TF, terraform_multi_az, scope="module"),
     Validator(
         "terraform-waf",

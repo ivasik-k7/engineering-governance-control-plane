@@ -50,11 +50,7 @@ def lint_registry(registry: Registry, today: dt.date | None = None) -> list[dict
             add("warning", where, f"external tool '{v.tool}' has no adapter; output parsed generically")
         if v.type == "semgrep" and (not v.config or v.config not in registry.raw):
             add("error", where, f"semgrep config not found in registry: {v.config}")
-        if (
-            rule.enforcement is Enforcement.MANDATORY
-            and v.type == "manual"
-            and rule.severity.value == "critical"
-        ):
+        if rule.enforcement is Enforcement.MANDATORY and v.type == "manual" and rule.severity.value == "critical":
             add("warning", where, "critical mandatory rule has no automated validator")
         if v.type == "builtin" and rule.applies_to.languages:
             suffixes = BUILTIN[v.id].suffixes if v.id in BUILTIN else ()

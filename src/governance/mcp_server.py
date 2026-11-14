@@ -28,9 +28,7 @@ policy_conflict, stop and ask a human. Only claim compliance when validate_chang
 compliance_claim_allowed: true.
 """
 
-READ_ONLY = ToolAnnotations(
-    read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False
-)
+READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=False)
 
 
 def create_server(registry_path: str | Path | None = None, repo_root: str | Path | None = None) -> MCPServer:

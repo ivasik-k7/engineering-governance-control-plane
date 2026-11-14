@@ -148,9 +148,7 @@ def build_bundle(registry: Registry, sign_key: Path | None = None) -> dict[str, 
     }
     if sign_key:
         try:
-            bundle["signatures"].append(
-                sign(sign_key, _signed_message(registry.policy_version, registry.digest))
-            )
+            bundle["signatures"].append(sign(sign_key, _signed_message(registry.policy_version, registry.digest)))
         except SignatureError as exc:
             raise RegistryError(str(exc)) from exc
     return bundle
@@ -217,9 +215,7 @@ def _build(root: str, raw: dict[str, str]) -> Registry:
         root=root,
         policy_version=str(config.get("policy_version", "0.0.0")),
         precedence=list(config.get("precedence", [])),
-        task_types={
-            k: [s.lower() for s in v.get("keywords", [])] for k, v in config.get("task_types", {}).items()
-        },
+        task_types={k: [s.lower() for s in v.get("keywords", [])] for k, v in config.get("task_types", {}).items()},
         rules=dict(sorted(rules.items())),
         profiles=profiles,
         waivers=waivers,

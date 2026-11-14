@@ -50,8 +50,7 @@ class ProjectConfig:
             d["environment"] = self.environment
         if self.overrides:
             d["overrides"] = [
-                {"rule": o.rule, "enforcement": o.enforcement.value, "reason": o.reason}
-                for o in self.overrides
+                {"rule": o.rule, "enforcement": o.enforcement.value, "reason": o.reason} for o in self.overrides
             ]
         if self.exclude_paths:
             d["exclude_paths"] = self.exclude_paths

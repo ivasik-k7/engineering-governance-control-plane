@@ -63,11 +63,7 @@ def resolve_identity(root: str | Path, declared_name: str) -> Identity:
     ):
         host = urlparse(env.get("GITHUB_SERVER_URL", "https://github.com")).hostname or "github.com"
         return Identity(f"{host}/{env['GITHUB_REPOSITORY']}", True, "github-actions")
-    if (
-        env.get("GITLAB_CI") == "true"
-        and env.get("CI_PROJECT_PATH")
-        and _within(root, env.get("CI_PROJECT_DIR"))
-    ):
+    if env.get("GITLAB_CI") == "true" and env.get("CI_PROJECT_PATH") and _within(root, env.get("CI_PROJECT_DIR")):
         host = env.get("CI_SERVER_HOST", "gitlab.com")
         return Identity(f"{host}/{env['CI_PROJECT_PATH']}", True, "gitlab-ci")
     try:

@@ -134,9 +134,7 @@ def git_diff(root: str | Path, base: str) -> str:
     def git(*args: str) -> str:
         return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=True).stdout
 
-    diff = git(
-        "diff", "--unified=0", "--no-color", "--no-ext-diff", "--no-renames", "--relative", base, "--", "."
-    )
+    diff = git("diff", "--unified=0", "--no-color", "--no-ext-diff", "--no-renames", "--relative", base, "--", ".")
     for rel in git("ls-files", "--others", "--exclude-standard").splitlines():
         text, _ = _read(root.resolve(), rel)
         if text is None:

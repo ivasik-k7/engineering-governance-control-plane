@@ -46,9 +46,7 @@ def test_project_can_relax_platform_recommendation(registry, bad_service):
 
 
 def test_project_can_tighten_rule(registry, tmp_path):
-    (tmp_path / ".governance.yaml").write_text(
-        "project: t\noverrides:\n  - rule: PY-005\n    enforcement: mandatory\n"
-    )
+    (tmp_path / ".governance.yaml").write_text("project: t\noverrides:\n  - rule: PY-005\n    enforcement: mandatory\n")
     (tmp_path / "pyproject.toml").write_text('[project]\nname="t"\ndependencies=[]\n')
     ctx = resolve_context(registry, tmp_path)
     resolved = {r.rule.id: r for r in resolve_rules(registry, ctx)[0]}
@@ -123,7 +121,5 @@ def test_paths_narrow_language_scoped_rules(registry, bad_service):
     got = ids(applicable_rules_payload(registry, ctx))
     assert "SEC-014" in got
     assert not {"AWS-001", "K8S-001"} & set(got)
-    whole_repo = ids(
-        applicable_rules_payload(registry, resolve_context(registry, bad_service, task="add JWT login"))
-    )
+    whole_repo = ids(applicable_rules_payload(registry, resolve_context(registry, bad_service, task="add JWT login")))
     assert {"AWS-001", "K8S-001"} <= set(whole_repo)

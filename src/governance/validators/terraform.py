@@ -42,9 +42,7 @@ def blocks(text: str) -> Iterator[Block]:
                 if depth == 0:
                     break
             i += 1
-        yield Block(
-            m.group(1), re.findall(r'"([^"]*)"', m.group(2)), line_of(text, m.start()), text[m.end() : i]
-        )
+        yield Block(m.group(1), re.findall(r'"([^"]*)"', m.group(2)), line_of(text, m.start()), text[m.end() : i])
 
 
 def s3_public(path: str, text: str, fs: FileSet) -> Iterator[Finding]:

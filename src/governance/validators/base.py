@@ -43,9 +43,7 @@ class FileSet:
 
     def siblings(self, path: str, suffix: str) -> dict[str, str]:
         parent = PurePosixPath(path).parent
-        return {
-            p: t for p, t in self.files.items() if PurePosixPath(p).parent == parent and p.endswith(suffix)
-        }
+        return {p: t for p, t in self.files.items() if PurePosixPath(p).parent == parent and p.endswith(suffix)}
 
 
 FileCheck = Callable[[str, str, FileSet], Iterable[Finding]]

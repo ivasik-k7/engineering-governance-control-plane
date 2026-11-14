@@ -65,9 +65,7 @@ def _matches_any(path: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(path, p) for p in patterns)
 
 
-def _exclusion_scope(
-    registry: Registry, ctx: Context, fs: FileSet, today: dt.date | None
-) -> tuple[Scope, dict]:
+def _exclusion_scope(registry: Registry, ctx: Context, fs: FileSet, today: dt.date | None) -> tuple[Scope, dict]:
     central_patterns: list[tuple[str, str]] = []
     for ex in registry.exclusions:
         if not ex.covers_project(ctx.identity.id):
@@ -249,9 +247,7 @@ def validate(
                 continue
         visible = scope.visible(fs.files, mandatory)
         if rr.rule.applies_to.has_context_dimensions or rr.rule.when:
-            visible = [
-                p for p in visible if dimension_reasons(rr.rule, ctx, ctx.service_for_path(p)) is not None
-            ]
+            visible = [p for p in visible if dimension_reasons(rr.rule, ctx, ctx.service_for_path(p)) is not None]
         status, findings, detail = _run_validator(rr, fs, visible, root, registry, run_external)
         result = RuleResult(rr.rule, rr.enforcement, status, rr.rule.validation.ref, detail=detail)
         waivers = matching_waivers(registry, rr.rule, ctx.identity.id, None, today) if findings else []
@@ -276,16 +272,12 @@ def validate(
     grade, grade_reasons = evidence_grade(ctx)
     results.sort(key=lambda r: (not r.blocking, STATUS_ORDER.index(r.status), r.enforcement.rank, r.rule.id))
     blocking = [r.rule.id for r in results if r.blocking]
-    manual = [
-        r.rule.id for r in results if r.status == "manual_review" and r.enforcement is Enforcement.MANDATORY
-    ]
+    manual = [r.rule.id for r in results if r.status == "manual_review" and r.enforcement is Enforcement.MANDATORY]
     warnings = [r.rule.id for r in results if r.status == "fail" and not r.blocking]
     errors = [r.rule.id for r in results if r.status == "error"]
     policy_conflicts = [c for c in conflicts if c["type"] == "policy_conflict"]
     unverified = [
-        r.rule.id
-        for r in results
-        if r.enforcement is Enforcement.MANDATORY and r.status in ("error", "skipped")
+        r.rule.id for r in results if r.enforcement is Enforcement.MANDATORY and r.status in ("error", "skipped")
     ]
 
     if blocking or policy_conflicts or (gaps and fail_closed):
