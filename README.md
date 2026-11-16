@@ -460,3 +460,7 @@ adr/                      architecture decisions
    from `validate_changes` output.
 3. Adapters for Checkov and OPA/Conftest; C# (.NET) language pack.
 4. Traceability export per release from decision records; NBU control mapping; ServiceNow catalog importer.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
