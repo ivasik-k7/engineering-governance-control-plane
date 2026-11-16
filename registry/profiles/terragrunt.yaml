@@ -1,0 +1,8 @@
+id: terragrunt
+title: Terragrunt live infrastructure
+description: Terragrunt units and root configuration (terragrunt.hcl, root.hcl) over Terraform or OpenTofu modules.
+match:
+  platforms: [terragrunt]
+categories: [security, cloud, compliance]
+default_environment: production
+include_rules: [CICD-005]

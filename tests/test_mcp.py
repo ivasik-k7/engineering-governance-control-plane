@@ -46,7 +46,7 @@ async def test_get_applicable_rules(bad_service):
     ids = [r["id"] for r in result["rules"]]
     assert ids[0] in ("SEC-014", "SEC-015")
     assert {"SEC-014", "SEC-015", "QA-008"} <= set(ids)
-    assert result["policy_version"] == "1.3.0"
+    assert result["policy_version"] == "1.4.0"
     assert any(d["type"] == "override_rejected" for d in result["diagnostics"])
 
 
@@ -73,7 +73,7 @@ async def test_policy_resource(bad_service):
     async with Client(create_server(repo_root=bad_service)) as client:
         res = await client.read_resource("governance://policy")
         rule = await client.read_resource("governance://rules/SEC-001")
-    assert json.loads(res.contents[0].text)["policy_version"] == "1.3.0"
+    assert json.loads(res.contents[0].text)["policy_version"] == "1.4.0"
     assert "Secrets must not be hardcoded" in rule.contents[0].text
 
 

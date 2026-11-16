@@ -3,6 +3,29 @@
 Policy versions (`registry/governance.yaml`) and tool versions (`pyproject.toml`) are
 versioned separately.
 
+## Tool 0.6.0 — 2026-11-16 (DevOps rule pack)
+
+- Detection of Terragrunt (`terragrunt.hcl`, `root.hcl`; language `hcl`, Packer `*.pkr.hcl`
+  separate), Dockerfile variants (`Dockerfile.*`, `*.Dockerfile`, `Containerfile`), GitHub
+  Actions, GitLab CI and Helm charts; Dockerfiles count as a project language.
+- Profiles `terragrunt`, `delivery` (Docker, CI pipelines, Helm) and `shell-scripts`; profile
+  matching supports `platforms_any`; `registry lint` rejects unknown match keys.
+- Fix: profile `include_rules` were parsed but ignored by the resolver; they now add rules from
+  categories the profile does not select.
+- HCL, Dockerfile and shell move to `full` language support; Packer is `secrets-only`.
+- New validators: `terraform-module-pinning`, `terraform-sensitive-values`,
+  `terraform-state-files`, `terraform-aws-default-tags`, `terraform-sg-open-ingress`,
+  `terraform-public-endpoints`, `terraform-cloudtrail`, `terraform-kms-rotation`,
+  `terraform-iam-static-keys`, `terraform-data-protection`, `terraform-lb-https`,
+  `terragrunt-source-pinning`, `terragrunt-remote-state`, `terragrunt-version-constraints`,
+  `terragrunt-mock-outputs`, `dockerfile-base-pinning`, `dockerfile-non-root`,
+  `dockerfile-build-secrets`, `dockerfile-remote-fetch`, `helm-pinning`, `gha-action-pinning`,
+  `gha-permissions`, `gha-script-injection`, `ci-static-cloud-credentials`, `shell-strict-mode`,
+  `shell-remote-exec`, `k8s-non-root`, `k8s-plain-secrets`; a reusable HCL block scanner.
+- Retrieval evaluation cases for Terraform, Terragrunt, Dockerfile, GitHub Actions, shell and
+  Kubernetes stacks.
+- This repository's CI pins `astral-sh/setup-uv` to a commit SHA.
+
 ## Tool 0.5.0 — 2026-11-14 (JVM and Go rule pack)
 
 - Stack detection for Maven and Gradle (Spring Boot, Spring Security, Actuator, JPA, jjwt,
@@ -76,6 +99,20 @@ Security fixes for the context engine ([ADR 0004](adr/0004-trust-model-and-monot
   applied exclusions; `gov validate --require-authoritative` exits 2 on advisory evidence.
 - The MCP server opens a fresh session per call and confines `repo_path` to its root.
 - `build_bundle` no longer shares the registry's file map with the bundle.
+
+## Policy 1.4.0 — 2026-11-16
+
+- New rules: TF-003 (module pinning), TF-004 (sensitive values, managed DB passwords), TF-005
+  (no committed state or plans), TF-006 (owner and environment tags), AWS-004 (security group
+  ingress), AWS-005 (public endpoints), AWS-006 (CloudTrail), AWS-007 (KMS rotation), AWS-008
+  (IAM user credentials), AWS-009 (deletion protection and backups, production), AWS-010 (HTTPS
+  listeners), TG-001 to TG-004 (Terragrunt source pinning, remote state, version constraints,
+  mock outputs), DOCKER-001 to DOCKER-004, CICD-001 to CICD-005, SH-001, SH-002, HELM-001,
+  K8S-004, K8S-005.
+- New category `delivery`; profiles `terragrunt`, `delivery`, `shell-scripts`; `aws-platform`
+  and `terragrunt` include CICD-005.
+- Infrastructure task keywords and path signals cover Terragrunt, Docker, CI pipelines, Helm and
+  Terraform state files.
 
 ## Policy 1.3.0 — 2026-11-14
 

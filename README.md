@@ -248,8 +248,13 @@ Resolution is deterministic: metadata filtering, not vector search
 1. **Inventory and detect.** Files come from `git ls-files` (tracked plus untracked, not
    ignored), so `.github` and other dot-directories are included. Outside git, a filesystem walk
    is used. Languages, frameworks and platforms are detected from manifests, `*.tf` (including
-   the AWS provider) and Kubernetes manifests. Centrally excluded paths are ignored.
-2. **Match profiles** (`python-api`, `python-lib`, `react-web`, `aws-platform`, `kubernetes`).
+   the AWS provider), Terragrunt configuration (`terragrunt.hcl`, `root.hcl`), Dockerfiles,
+   GitHub Actions and GitLab CI pipelines, Helm charts and Kubernetes manifests. Centrally
+   excluded paths are ignored.
+2. **Match profiles** (`python-api`, `python-lib`, `react-web`, `jvm-service`, `go-service`,
+   `aws-platform`, `terragrunt`, `kubernetes`, `delivery`, `shell-scripts`). A profile matches on
+   `languages` (all), `languages_any`, `platforms` (all), `platforms_any`, `frameworks_any` and
+   `frameworks_none`; `include_rules` adds rules from categories the profile does not select.
    Profiles pinned in `.governance.yaml` are added to detected ones.
 3. **Classify the task.** Declared text uses whole-word keywords (`authenticat*` for prefixes).
    Code evidence comes from `task_signals`: imports such as `jwt` or `passlib`, Alembic
@@ -315,10 +320,24 @@ emitted as suppressions).
 | `insecure-random`, `command-injection`, `unsafe-deserialization` (Python, JVM, Go, JS) | SEC-016, SEC-021, SEC-022 |
 | `spring-csrf-disabled`, `xxe`, `actuator-exposure` | JVM-001, JVM-002, JVM-003 |
 | `go-http-timeouts` | GO-001 |
+| `terraform-module-pinning`, `terraform-sensitive-values`, `terraform-state-files`, `terraform-aws-default-tags` | TF-003/004/005/006 |
+| `terraform-sg-open-ingress`, `terraform-public-endpoints`, `terraform-cloudtrail`, `terraform-kms-rotation` | AWS-004/005/006/007 |
+| `terraform-iam-static-keys`, `terraform-data-protection`, `terraform-lb-https` | AWS-008/009/010 |
+| `terragrunt-source-pinning`, `terragrunt-remote-state`, `terragrunt-version-constraints`, `terragrunt-mock-outputs` | TG-001/002/003/004 |
+| `dockerfile-base-pinning`, `dockerfile-non-root`, `dockerfile-build-secrets`, `dockerfile-remote-fetch` | DOCKER-001/002/003/004 |
+| `gha-action-pinning`, `gha-permissions`, `gha-script-injection`, `ci-static-cloud-credentials` (GitHub Actions, GitLab CI) | CICD-001/002/003/004 |
+| `shell-strict-mode`, `shell-remote-exec` | SH-001, SH-002 |
+| `helm-pinning` | HELM-001 |
+| `k8s-non-root`, `k8s-plain-secrets` | K8S-004, K8S-005 |
 
 JWT, password hashing, SQL, TLS verification, weak TLS and sensitive-logging checks cover Python,
 TypeScript/JavaScript, Java, Kotlin and Go: jjwt, java-jwt, golang-jwt; JDBC, `JdbcTemplate`, JPA,
 Kotlin templates, `database/sql`, GORM; trust-all `X509TrustManager`, `InsecureSkipVerify`.
+
+Terraform and Terragrunt checks use a structural HCL scanner (strings, interpolations, heredocs
+and comments are handled; expressions are not evaluated). A value that is a reference such as
+`var.x` is treated as unknown and not reported. CICD-005 (applying infrastructure only from a
+reviewed plan in the pipeline) is a manual rule that `aws-platform` and `terragrunt` include.
 
 External adapters: `ruff` (PY-001), `pip-audit` (SEC-010, Python) and `osv-scanner` (SEC-011:
 Maven, Gradle lockfiles, Go modules, npm; findings at CVSS 9.0 and above). Semgrep rules use
@@ -444,8 +463,14 @@ adr/                      architecture decisions
 - Authoritative evidence depends on the CI job being outside the repository's control. If a
   repository can edit its own workflow, it can change `GOV_REGISTRY` and `GOV_TRUSTED_KEYS`.
 - Validators beyond secret scanning cover Python, TypeScript/JavaScript, Java, Kotlin, Go,
-  Terraform and Kubernetes YAML. C#, Scala, PHP, Ruby and others are reported as coverage gaps,
-  not passed.
+  Terraform, Terragrunt HCL, Dockerfiles, shell scripts, GitHub Actions and GitLab CI pipelines,
+  Helm charts and Kubernetes YAML. C#, Scala, PHP, Ruby, PowerShell, Packer and others are
+  reported as coverage gaps, not passed.
+- Shell scripts are recognised by `.sh` and `.bash`; extensionless scripts with a shebang are not
+  scanned. Binary `tfplan` files are skipped like all binary files, so TF-005 reports only `*.tfstate*`
+  and JSON plans.
+- CI/CD variables injected at runtime (GitHub secrets, GitLab project variables) are invisible to
+  CICD-004; its design check asks how pipelines obtain cloud credentials.
 - Components come from the catalog only; CODEOWNERS is not used.
 - No ServiceNow importer yet; produce the external catalog format from the CMDB.
 - `pip-audit` on a `pyproject.toml` project creates a temporary virtualenv, which requires

@@ -528,7 +528,8 @@ def scope_reasons(
 def _profile_exclusion(registry: Registry, rule: Rule, enforcement: Enforcement, ctx: Context) -> Check | None:
     if enforcement is Enforcement.MANDATORY:
         return None
-    if rule.category not in ctx.categories:
+    included = any(p in registry.profiles and rule.id in registry.profiles[p].include_rules for p in ctx.profiles)
+    if rule.category not in ctx.categories and not included:
         return Check(
             "PROFILE_CATEGORY_EXCLUDED",
             f"category '{rule.category}' is not in profiles {', '.join(ctx.profiles) or 'none'}",

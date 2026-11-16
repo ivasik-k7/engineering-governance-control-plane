@@ -14,6 +14,14 @@ from governance.validators import BUILTIN
 
 KNOWN_VALIDATION_TYPES = {"builtin", "external", "semgrep", "manual"}
 KNOWN_EXTERNAL_TOOLS = {"ruff", "pip-audit", "osv-scanner", "checkov", "conftest", "bandit"}
+KNOWN_PROFILE_MATCH_KEYS = {
+    "languages",
+    "languages_any",
+    "platforms",
+    "platforms_any",
+    "frameworks_any",
+    "frameworks_none",
+}
 
 
 def lint_registry(registry: Registry, today: dt.date | None = None) -> list[dict[str, Any]]:
@@ -74,6 +82,8 @@ def lint_registry(registry: Registry, today: dt.date | None = None) -> list[dict
 
     for profile in registry.profiles.values():
         where = f"profiles/{profile.id}"
+        for key in sorted(set(profile.match) - KNOWN_PROFILE_MATCH_KEYS):
+            add("error", where, f"unknown match key '{key}'; known: {', '.join(sorted(KNOWN_PROFILE_MATCH_KEYS))}")
         for c in profile.categories:
             if c not in categories:
                 add("error", where, f"unknown category '{c}'")
@@ -230,6 +240,9 @@ LANG_SUFFIX = {
     "kotlin": (".kt", ".kts"),
     "go": (".go",),
     "terraform": (".tf",),
+    "hcl": (".hcl",),
+    "dockerfile": (".dockerfile", ".Dockerfile"),
+    "shell": (".sh", ".bash"),
     "yaml": (".yaml", ".yml"),
 }
 

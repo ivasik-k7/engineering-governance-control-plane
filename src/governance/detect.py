@@ -22,6 +22,7 @@ EXTENSION_LANGUAGE = {
     ".rs": "rust",
     ".tf": "terraform",
     ".tfvars": "terraform",
+    ".hcl": "hcl",
     ".yaml": "yaml",
     ".yml": "yaml",
     ".java": "java",
@@ -66,6 +67,8 @@ CODE_LANGUAGES = {
     "powershell",
     "sql",
     "dockerfile",
+    "hcl",
+    "packer",
 }
 
 PYTHON_FRAMEWORKS = {
@@ -110,10 +113,19 @@ TF_AWS = re.compile(r'(provider\s+"aws"|source\s*=\s*"hashicorp/aws"|resource\s+
 REQ_NAME = re.compile(r"^\s*([A-Za-z0-9_.\-\[\]]+)")
 
 
+DOCKERFILE_NAME = re.compile(
+    r"^(Dockerfile|Containerfile)(\.(?!(md|txt|rst|adoc|bak|orig|swp)$)[\w.-]+)?$|\.(dockerfile|Dockerfile)$"
+)
+TERRAGRUNT_ROOTS = ("terragrunt.hcl", "root.hcl")
+GITHUB_WORKFLOW = re.compile(r"(^|/)\.github/workflows/[^/]+\.ya?ml$")
+
+
 def language_of(path: str | Path) -> str | None:
     p = Path(path)
-    if p.name == "Dockerfile":
+    if DOCKERFILE_NAME.search(p.name):
         return "dockerfile"
+    if p.name.endswith(".pkr.hcl"):
+        return "packer"
     return EXTENSION_LANGUAGE.get(p.suffix.lower())
 
 
@@ -219,9 +231,18 @@ def detect_project(root: str | Path, inventory: Inventory | None = None) -> Proj
                 facts.add("platforms", "kubernetes", rel)
         elif lang == "dockerfile" and "docker" not in facts.platforms:
             facts.add("platforms", "docker", rel)
+        name = Path(rel).name
+        if name in TERRAGRUNT_ROOTS and "terragrunt" not in facts.platforms:
+            facts.add("platforms", "terragrunt", rel)
+        elif GITHUB_WORKFLOW.search(rel) and "github-actions" not in facts.platforms:
+            facts.add("platforms", "github-actions", rel)
+        elif name == ".gitlab-ci.yml" and "gitlab-ci" not in facts.platforms:
+            facts.add("platforms", "gitlab-ci", rel)
+        elif name == "Chart.yaml" and "helm" not in facts.platforms:
+            facts.add("platforms", "helm", rel)
 
     for lang, n in counts.items():
-        if lang not in facts.languages and lang not in ("yaml", "dockerfile"):
+        if lang not in facts.languages and lang != "yaml":
             facts.add("languages", lang, f"{n} source file(s)")
     if "yaml" in counts:
         facts.add("languages", "yaml", f"{counts['yaml']} file(s)")

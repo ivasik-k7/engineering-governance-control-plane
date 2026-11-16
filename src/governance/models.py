@@ -184,6 +184,8 @@ class Profile:
             return False
         if m.get("platforms") and not set(m["platforms"]) <= set(facts.platforms):
             return False
+        if m.get("platforms_any") and not set(m["platforms_any"]) & set(facts.platforms):
+            return False
         if m.get("frameworks_any") and not set(m["frameworks_any"]) & set(facts.frameworks):
             return False
         return not (m.get("frameworks_none") and set(m["frameworks_none"]) & set(facts.frameworks))

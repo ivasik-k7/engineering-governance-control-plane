@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from typing import Any
 
@@ -33,12 +34,16 @@ def _construct_mapping(loader: _LineLoader, node: yaml.MappingNode) -> dict[str,
 _LineLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping)
 
 
-def _pod_specs(text: str) -> Iterator[tuple[str, dict[str, Any]]]:
+def load_documents(text: str, loader: type[yaml.SafeLoader] = _LineLoader) -> list[Any]:
+    """All YAML documents with a LINE key on every mapping; an unparsable file yields none."""
     try:
-        docs = list(yaml.load_all(text, Loader=_LineLoader))
+        return list(yaml.load_all(text, Loader=loader))
     except yaml.YAMLError:
-        return
-    for doc in docs:
+        return []
+
+
+def _pod_specs(text: str) -> Iterator[tuple[str, dict[str, Any]]]:
+    for doc in load_documents(text):
         if not isinstance(doc, dict) or doc.get("kind") not in POD_PATHS:
             continue
         spec: Any = doc
@@ -110,8 +115,61 @@ def latest_tag(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
                 )
 
 
+def non_root(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
+    for workload, spec in _pod_specs(text):
+        pod_sc = spec.get("securityContext") or {}
+        for c in _containers(spec):
+            sc = c.get("securityContext") or {}
+            user = sc.get("runAsUser", pod_sc.get("runAsUser"))
+            non_root_set = sc.get("runAsNonRoot", pod_sc.get("runAsNonRoot")) is True
+            problems = []
+            if user == 0:
+                problems.append("runs as UID 0")
+            elif not (non_root_set or (isinstance(user, int) and user > 0)):
+                problems.append("does not set runAsNonRoot: true")
+            if sc.get("readOnlyRootFilesystem") is not True:
+                problems.append("does not set readOnlyRootFilesystem: true")
+            if problems:
+                yield Finding(
+                    path,
+                    sc.get(LINE, c.get(LINE, 1)),
+                    f"{workload}: container '{c.get('name')}' " + " and ".join(problems) + ".",
+                    snippet=f"name: {c.get('name')}",
+                )
+
+
+SOPS_VALUE = re.compile(r"^ENC\[")
+TEMPLATED = re.compile(r"\{\{.*\}\}|^\$\{\w+\}$")
+
+
+def plain_secrets(path: str, text: str, fs: FileSet) -> Iterator[Finding]:
+    for doc in load_documents(text):
+        if not isinstance(doc, dict) or doc.get("kind") != "Secret" or "sops" in doc:
+            continue
+        name = (doc.get("metadata") or {}).get("name", "?")
+        for key in ("data", "stringData"):
+            values = doc.get(key)
+            if not isinstance(values, dict):
+                continue
+            plain = [
+                k
+                for k, v in values.items()
+                if k != LINE and v not in (None, "") and not SOPS_VALUE.match(str(v)) and not TEMPLATED.search(str(v))
+            ]
+            if plain:
+                yield Finding(
+                    path,
+                    values.get(LINE, doc.get(LINE, 1)),
+                    f"Secret/{name} commits {key} values ({', '.join(map(str, plain))}) in plain form; "
+                    "use SOPS, Sealed Secrets or External Secrets.",
+                    snippet=f"{key}: {', '.join(map(str, plain))}",
+                )
+
+
 VALIDATORS = [
     Validator("k8s-privileged", "Privileged containers and host namespaces", YAML, privileged),
     Validator("k8s-resources", "Missing container resource requests and limits", YAML, resources),
     Validator("k8s-latest-tag", "Floating image tags", YAML, latest_tag),
+    Validator("k8s-non-root", "Containers running as root or with a writable root filesystem", YAML, non_root),
+    Validator("k8s-plain-secrets", "Plain Kubernetes Secret manifests", YAML, plain_secrets),
 ]

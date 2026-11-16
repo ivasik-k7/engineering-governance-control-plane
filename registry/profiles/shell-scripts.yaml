@@ -1,0 +1,7 @@
+id: shell-scripts
+title: Shell scripts
+description: Bash and POSIX shell scripts used for build, deployment and operations.
+match:
+  languages: [shell]
+categories: [security, delivery]
+default_environment: development

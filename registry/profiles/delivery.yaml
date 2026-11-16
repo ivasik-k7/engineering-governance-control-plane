@@ -1,0 +1,7 @@
+id: delivery
+title: Container images and CI/CD pipelines
+description: Dockerfiles, GitHub Actions and GitLab CI pipelines, Helm charts.
+match:
+  platforms_any: [docker, github-actions, gitlab-ci, helm]
+categories: [security, delivery]
+default_environment: development

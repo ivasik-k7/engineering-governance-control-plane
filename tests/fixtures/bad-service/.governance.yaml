@@ -1,5 +1,5 @@
 project: bad-service
-policy_version: 1.3.0
+policy_version: 1.4.0
 environment: production
 overrides:
   - rule: SEC-001

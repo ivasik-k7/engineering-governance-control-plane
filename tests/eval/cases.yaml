@@ -56,3 +56,49 @@
   task: ""
   environment: production
   must_include: [SEC-014, SEC-015, QA-008]
+
+- name: terraform-security-group-and-database
+  stack: {languages: [terraform], platforms: [aws, terraform]}
+  task: Add a security group and a Postgres RDS instance with Terraform
+  environment: production
+  must_include: [AWS-004, AWS-005, AWS-009, TF-003, TF-004, TF-005, CICD-005]
+  must_be_mandatory: [AWS-004, AWS-005, TF-005]
+  must_exclude: [DOCKER-002, TG-001, SEC-014]
+
+- name: terragrunt-live-unit
+  stack: {languages: [hcl], platforms: [terragrunt]}
+  task: Add a Terragrunt unit for the VPC in the production account
+  environment: production
+  must_include: [TG-001, TG-002, TG-003, TG-004, CICD-005, SEC-001]
+  must_exclude: [AWS-001, DOCKER-001, PY-005]
+
+- name: dockerfile-hardening
+  stack: {languages: [python, dockerfile], platforms: [docker]}
+  task: Write a Dockerfile for the worker image
+  environment: development
+  must_include: [DOCKER-001, DOCKER-002, DOCKER-003, DOCKER-004]
+  must_be_mandatory: [DOCKER-003]
+  must_exclude: [CICD-001, TG-001, AWS-004]
+
+- name: github-actions-workflow
+  stack: {languages: [yaml], platforms: [github-actions]}
+  task: Add a GitHub Actions workflow that deploys on merge
+  environment: staging
+  must_include: [CICD-001, CICD-002, CICD-003, CICD-004]
+  must_be_mandatory: [CICD-003]
+  must_exclude: [DOCKER-001, TG-001, PY-012]
+
+- name: shell-deploy-script
+  stack: {languages: [shell]}
+  task: Write a deploy script that installs the CLI
+  environment: development
+  must_include: [SH-001, SH-002, SEC-001]
+  must_exclude: [DOCKER-002, CICD-001, AWS-001]
+
+- name: kubernetes-secret-manifest
+  stack: {languages: [yaml], platforms: [kubernetes]}
+  task: Add database credentials to the Kubernetes deployment
+  environment: production
+  must_include: [K8S-004, K8S-005, K8S-001]
+  must_be_mandatory: [K8S-005]
+  must_exclude: [DOCKER-001, CICD-001]

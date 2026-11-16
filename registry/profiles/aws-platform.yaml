@@ -4,3 +4,4 @@ match:
   languages: [terraform]
 categories: [security, cloud, architecture, compliance]
 default_environment: production
+include_rules: [CICD-005]

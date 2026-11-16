@@ -25,6 +25,9 @@ resource "aws_db_instance" "main" {
   instance_class    = "db.t4g.micro"
   storage_encrypted = true
   multi_az          = true
+
+  deletion_protection     = true
+  backup_retention_period = 14
 }
 
 data "aws_iam_policy_document" "app" {

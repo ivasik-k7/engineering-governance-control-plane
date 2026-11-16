@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
@@ -65,6 +66,16 @@ class Validator:
         if self.filenames and any(fnmatch.fnmatch(name, n) for n in self.filenames):
             return True
         return not self.suffixes or path.endswith(self.suffixes)
+
+
+@dataclass(frozen=True)
+class PathValidator(Validator):
+    """A validator selected by a path regex; `suffixes` still names its language for lint."""
+
+    path_pattern: re.Pattern[str] = re.compile(r"(?!)")
+
+    def handles(self, path: str) -> bool:
+        return self.path_pattern.search(path) is not None
 
 
 def snippet(line: str, limit: int = 160) -> str:
